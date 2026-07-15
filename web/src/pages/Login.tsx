@@ -24,13 +24,13 @@ export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
         <p className="login-sub">Compliance console — admin sign in</p>
         <label className="field">
           <span>Email</span>
-          <input type="email" autoFocus value={email}
-                 onChange={(e) => setEmail(e.target.value)} placeholder="admin@promptaudit.local" />
+          <input type="email" autoFocus autoComplete="off" value={email}
+                 onChange={(e) => setEmail(e.target.value)} />
         </label>
         <label className="field">
           <span>Password</span>
-          <input type="password" value={password}
-                 onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+          <input type="password" autoComplete="off" value={password}
+                 onChange={(e) => setPassword(e.target.value)} />
         </label>
         {error && <div className="error">{error}</div>}
         <button className="btn primary" type="submit" disabled={busy}>
