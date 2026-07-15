@@ -1,57 +1,52 @@
 package com.gigrt.promptaudit.auth;
 
-import org.springframework.beans.factory.annotation.Value;
+import com.gigrt.promptaudit.tenant.TenantService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Admin login → session JWT. Credentials come from configuration/env (ADMIN_EMAIL / ADMIN_PASSWORD),
- * NOT the database — this is the single-admin demo posture (no user table, no RBAC, no SSO).
+ * Admin login → session JWT. Authenticates the platform superadmin (from env) or an org-admin
+ * (from the DB) via {@link TenantService}. The JWT carries the role + tenant so every read is scoped.
  *
- * This login is entirely independent from the ingest token (see {@link SecurityInterceptor}).
+ * Entirely independent from the ingest tokens (see {@link SecurityInterceptor}).
  */
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
-    @Value("${app.admin.email:admin@promptaudit.local}")
-    private String adminEmail;
-
-    @Value("${app.admin.password:changeme}")
-    private String adminPassword;
-
+    private final TenantService tenants;
     private final JwtUtil jwt;
 
-    public AuthController(JwtUtil jwt) { this.jwt = jwt; }
+    public AuthController(TenantService tenants, JwtUtil jwt) { this.tenants = tenants; this.jwt = jwt; }
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@RequestBody(required = false) Map<String, Object> body) {
         String email = body != null ? str(body.get("email")) : null;
         String password = body != null ? str(body.get("password")) : null;
 
-        boolean ok = email != null
-                && constantEquals(email, adminEmail)
-                && password != null
-                && constantEquals(password, adminPassword);
-        if (!ok) {
+        TenantService.Identity id = tenants.authenticate(email, password);
+        if (id == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Collections.singletonMap("error", "invalid_credentials"));
         }
 
         Map<String, Object> claims = new LinkedHashMap<>();
-        claims.put("sub", adminEmail);
-        claims.put("role", "admin");
+        claims.put("sub", id.email);
+        claims.put("role", id.role);                       // "platform" | "org"
+        if (id.tenantId != null) claims.put("tenant", id.tenantId);   // org id — absent for platform
+        if (id.orgName != null) claims.put("org_name", id.orgName);
         String token = jwt.issue(claims);
 
         Map<String, Object> profile = new LinkedHashMap<>();
-        profile.put("email", adminEmail);
-        profile.put("role", "admin");
+        profile.put("email", id.email);
+        profile.put("role", id.role);
+        profile.put("tenant", id.tenantId);
+        profile.put("org_name", id.orgName);
 
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("token", token);
@@ -59,22 +54,9 @@ public class AuthController {
         return ResponseEntity.ok(resp);
     }
 
-    /**
-     * Stateless logout. The JWT is self-contained (no server session), so logout is a client-side
-     * token drop; the server just acknowledges. Kept as an endpoint so the contract is explicit.
-     */
+    /** Stateless logout — client drops the token. */
     @PostMapping("/logout")
-    public Map<String, Object> logout() {
-        return Collections.singletonMap("ok", true);
-    }
+    public Map<String, Object> logout() { return Collections.singletonMap("ok", true); }
 
     private static String str(Object o) { return o == null ? null : String.valueOf(o); }
-
-    private static boolean constantEquals(String a, String b) {
-        byte[] x = a.getBytes(StandardCharsets.UTF_8), y = b.getBytes(StandardCharsets.UTF_8);
-        if (x.length != y.length) return false;
-        int r = 0;
-        for (int i = 0; i < x.length; i++) r |= x[i] ^ y[i];
-        return r == 0;
-    }
 }

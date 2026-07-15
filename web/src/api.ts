@@ -83,3 +83,62 @@ export function exportUrl(f: Filters, format: "csv" | "json"): string {
   const token = getToken() ?? "";
   return `/api/v1/prompts/export?${query(f, { format, token })}`;
 }
+
+// ---- multi-tenant management ----
+
+export interface TenantRow {
+  id: string;
+  name: string;
+  token: string;
+  admin_count: number;
+  created_at: string | null;
+}
+
+export interface OrgAdmin {
+  id: string;
+  email: string;
+  created_at: string | null;
+}
+
+async function jsonOrThrow(r: Response): Promise<any> {
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || `HTTP ${r.status}`);
+  return body;
+}
+
+// platform superadmin
+export async function listTenants(): Promise<TenantRow[]> {
+  return (await jsonOrThrow(await authedFetch("/api/v1/tenants"))).items;
+}
+export async function createTenant(name: string): Promise<TenantRow> {
+  return jsonOrThrow(await authedFetch("/api/v1/tenants", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }),
+  }));
+}
+export async function rotateTenantToken(id: string): Promise<TenantRow> {
+  return jsonOrThrow(await authedFetch(`/api/v1/tenants/${id}/rotate-token`, { method: "POST" }));
+}
+export async function deleteTenant(id: string): Promise<void> {
+  await jsonOrThrow(await authedFetch(`/api/v1/tenants/${id}`, { method: "DELETE" }));
+}
+export async function listAdmins(tenantId: string): Promise<OrgAdmin[]> {
+  return (await jsonOrThrow(await authedFetch(`/api/v1/tenants/${tenantId}/admins`))).items;
+}
+export async function createAdmin(tenantId: string, email: string, password: string): Promise<OrgAdmin> {
+  return jsonOrThrow(await authedFetch(`/api/v1/tenants/${tenantId}/admins`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  }));
+}
+export async function deleteAdmin(tenantId: string, adminId: string): Promise<void> {
+  await jsonOrThrow(await authedFetch(`/api/v1/tenants/${tenantId}/admins/${adminId}`, { method: "DELETE" }));
+}
+
+// org admin — own token
+export interface MyTenant { id: string; name: string; token: string; created_at: string | null; }
+export async function getMyTenant(): Promise<MyTenant> {
+  return jsonOrThrow(await authedFetch("/api/v1/my/tenant"));
+}
+export async function rotateMyToken(): Promise<MyTenant> {
+  return jsonOrThrow(await authedFetch("/api/v1/my/tenant/rotate-token", { method: "POST" }));
+}

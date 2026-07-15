@@ -4,6 +4,8 @@ import java.time.Instant;
 
 /** Filter parameters shared by the list and export endpoints. Null/blank fields are ignored. */
 public class PromptQuery {
+    /** Server-enforced tenant isolation (from the caller's JWT). Not a user-supplied filter. */
+    public String tenantOrgId;
     public Instant from;        // received_at >= from
     public Instant to;          // received_at <= to
     public String userEmail;    // exact match

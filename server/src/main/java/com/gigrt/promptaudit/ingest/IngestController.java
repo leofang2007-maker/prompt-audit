@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Collections;
@@ -29,13 +30,17 @@ public class IngestController {
     public IngestController(PromptService service) { this.service = service; }
 
     @PostMapping
-    public ResponseEntity<Map<String, Object>> ingest(@RequestBody(required = false) IngestRequest body) {
+    public ResponseEntity<Map<String, Object>> ingest(@RequestBody(required = false) IngestRequest body,
+                                                       HttpServletRequest req) {
         if (body == null || body.prompt == null || body.prompt.trim().isEmpty()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Collections.singletonMap("error", "prompt_required"));
         }
 
         PromptRecord r = new PromptRecord();
+        // Trusted owning tenant from the ingest token (set by SecurityInterceptor) — NOT the client's claim.
+        r.setTenantOrgId((String) req.getAttribute(
+                com.gigrt.promptaudit.auth.SecurityInterceptor.INGEST_TENANT));
         r.setEventId(trimToNull(body.event_id));
         r.setTimestamp(parseTs(body.timestamp));
         r.setSessionId(trimToNull(body.session_id));

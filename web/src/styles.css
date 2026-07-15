@@ -46,6 +46,13 @@ body {
   padding: 12px 22px; border-bottom: 1px solid var(--border); background: var(--panel);
 }
 .brand { font-weight: 700; font-size: 16px; letter-spacing: .2px; }
+.tabs { display: flex; gap: 4px; margin-left: 8px; }
+.tab {
+  background: transparent; border: none; color: var(--muted); cursor: pointer;
+  padding: 7px 14px; border-radius: 8px; font-size: 13px;
+}
+.tab:hover { color: var(--text); background: var(--panel-2); }
+.tab.active { color: var(--text); background: var(--panel-2); font-weight: 600; }
 .topbar-right { display: flex; align-items: center; gap: 14px; }
 .who { color: var(--muted); font-size: 13px; }
 .main { padding: 22px; max-width: 1280px; width: 100%; margin: 0 auto; }
@@ -115,3 +122,21 @@ td.empty { text-align: center; color: var(--muted); padding: 28px; }
   padding: 14px; white-space: pre-wrap; word-break: break-word; font-size: 13px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; line-height: 1.5; margin: 0;
 }
+
+/* management pages (tenants / my token) */
+.panel-page { max-width: 1000px; }
+.panel-page h2 { margin: 0 0 6px; }
+.panel-page h3 { margin: 22px 0 8px; }
+.grow-input { flex: 1; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; color: var(--text); font-size: 13px; outline: none; }
+.grow-input:focus { border-color: var(--primary-2); }
+.token-value { display: inline-flex; align-items: center; gap: 8px; }
+.token-value code { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 3px 7px; font-size: 12px; }
+.token-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; max-width: 640px; }
+.token-row { display: flex; align-items: center; gap: 14px; padding: 8px 0; }
+.token-row .meta-label { width: 80px; }
+.sub-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-top: 14px; }
+.sub-panel h4 { margin: 0 0 10px; }
+.admin-list { list-style: none; padding: 0; margin: 0 0 12px; }
+.admin-list li { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.filter-actions input { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; color: var(--text); font-size: 13px; outline: none; }
+.filter-actions input:focus { border-color: var(--primary-2); }

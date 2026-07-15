@@ -3,7 +3,12 @@
 const KEY = "pa.token";
 const PKEY = "pa.profile";
 
-export interface Profile { email: string; role: string; }
+export interface Profile {
+  email: string;
+  role: "platform" | "org";
+  tenant?: string | null;   // org id — null/absent for the platform superadmin
+  org_name?: string | null;
+}
 
 export function getToken(): string | null { return localStorage.getItem(KEY); }
 export function getProfile(): Profile | null {

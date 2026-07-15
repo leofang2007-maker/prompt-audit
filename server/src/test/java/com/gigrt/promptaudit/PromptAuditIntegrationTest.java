@@ -185,11 +185,93 @@ class PromptAuditIntegrationTest {
                 .andExpect(jsonPath("$.ok").value(true));
     }
 
-    private String adminToken() throws Exception {
-        MvcResult login = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"admin@promptaudit.local\",\"password\":\"secret-admin\"}"))
+    @Test
+    void multi_tenant_isolation() throws Exception {
+        String platform = "Bearer " + adminToken();
+
+        // platform creates two tenants (each gets its own ingest token)
+        String acmeTok = createTenant(platform, "Acme");
+        String betaTok = createTenant(platform, "Beta");
+        org.junit.jupiter.api.Assertions.assertTrue(acmeTok.startsWith("iat_"));
+
+        // each org's token stamps its rows with the TRUSTED tenant (not client-claimed org)
+        ingest(acmeTok, "acme secret plan", "acme-sess");
+        ingest(betaTok, "beta roadmap", "beta-sess");
+
+        // platform provisions an Acme org-admin and logs in as them
+        mvc.perform(post("/api/v1/tenants/" + tenantIdByName(platform, "Acme") + "/admins")
+                        .header("Authorization", platform).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"admin@acme.com\",\"password\":\"acme-pw-123\"}"))
+                .andExpect(status().isCreated());
+        String acmeAdmin = "Bearer " + login("admin@acme.com", "acme-pw-123");
+
+        // the Acme admin sees ONLY Acme's row — Beta's is invisible
+        mvc.perform(get("/api/v1/prompts").header("Authorization", acmeAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].session_id").value("acme-sess"));
+
+        // a keyword that only matches Beta's row returns nothing for the Acme admin
+        mvc.perform(get("/api/v1/prompts?keyword=roadmap").header("Authorization", acmeAdmin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(0));
+
+        // org admin cannot reach platform tenant management (403)
+        mvc.perform(get("/api/v1/tenants").header("Authorization", acmeAdmin))
+                .andExpect(status().isForbidden());
+
+        // org admin views + rotates its OWN token; the old token stops authorizing
+        MvcResult mine = mvc.perform(get("/api/v1/my/tenant").header("Authorization", acmeAdmin))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Acme")).andReturn();
+        org.junit.jupiter.api.Assertions.assertEquals(acmeTok,
+                json.readTree(mine.getResponse().getContentAsString()).get("token").asText());
+        mvc.perform(post("/api/v1/my/tenant/rotate-token").header("Authorization", acmeAdmin))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/prompts").header("Authorization", "Bearer " + acmeTok)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"prompt\":\"with old token\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void tenant_admin_routes_require_auth_and_platform_role() throws Exception {
+        mvc.perform(get("/api/v1/tenants")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/tenants").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"x\"}")).andExpect(status().isUnauthorized());
+    }
+
+    // ---- helpers ----
+
+    private String createTenant(String platformAuth, String name) throws Exception {
+        MvcResult r = mvc.perform(post("/api/v1/tenants").header("Authorization", platformAuth)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + name + "\"}"))
+                .andExpect(status().isCreated()).andReturn();
+        return json.readTree(r.getResponse().getContentAsString()).get("token").asText();
+    }
+
+    private String tenantIdByName(String platformAuth, String name) throws Exception {
+        MvcResult r = mvc.perform(get("/api/v1/tenants").header("Authorization", platformAuth))
                 .andExpect(status().isOk()).andReturn();
-        return json.readTree(login.getResponse().getContentAsString()).get("token").asText();
+        for (JsonNode t : json.readTree(r.getResponse().getContentAsString()).get("items"))
+            if (name.equals(t.get("name").asText())) return t.get("id").asText();
+        throw new AssertionError("tenant not found: " + name);
+    }
+
+    private void ingest(String ingestToken, String prompt, String session) throws Exception {
+        mvc.perform(post("/api/v1/prompts").header("Authorization", "Bearer " + ingestToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"session_id\":\"" + session + "\",\"prompt\":\"" + prompt + "\"}"))
+                .andExpect(status().isOk());
+    }
+
+    private String login(String email, String password) throws Exception {
+        MvcResult r = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}"))
+                .andExpect(status().isOk()).andReturn();
+        return json.readTree(r.getResponse().getContentAsString()).get("token").asText();
+    }
+
+    private String adminToken() throws Exception {
+        return login("admin@promptaudit.local", "secret-admin");
     }
 
     @Test

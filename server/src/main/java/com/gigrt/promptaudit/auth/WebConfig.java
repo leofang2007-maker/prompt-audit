@@ -1,29 +1,29 @@
 package com.gigrt.promptaudit.auth;
 
-import org.springframework.beans.factory.annotation.Value;
+import com.gigrt.promptaudit.tenant.TenantService;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * Wires {@link SecurityInterceptor} onto the /api/v1/prompts routes.
+ * Wires {@link SecurityInterceptor} onto the protected /api/v1 routes.
  * Public routes (no interceptor): POST/DELETE /api/v1/auth/* (login/logout) and /health.
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
     private final JwtUtil jwt;
+    private final TenantService tenants;
 
-    @Value("${app.ingest.token:}")
-    private String ingestToken;
-
-    public WebConfig(JwtUtil jwt) { this.jwt = jwt; }
+    public WebConfig(JwtUtil jwt, TenantService tenants) { this.jwt = jwt; this.tenants = tenants; }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(new SecurityInterceptor(jwt, ingestToken))
-                .addPathPatterns("/api/v1/prompts", "/api/v1/prompts/**");
+        registry.addInterceptor(new SecurityInterceptor(jwt, tenants))
+                .addPathPatterns("/api/v1/prompts", "/api/v1/prompts/**",
+                        "/api/v1/tenants", "/api/v1/tenants/**",
+                        "/api/v1/my", "/api/v1/my/**");
     }
 
     @Override

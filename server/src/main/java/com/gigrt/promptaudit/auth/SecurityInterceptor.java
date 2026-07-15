@@ -1,60 +1,63 @@
 package com.gigrt.promptaudit.auth;
 
+import com.gigrt.promptaudit.tenant.TenantService;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
- * THE security boundary of this service — and the demo's headline point.
+ * THE security boundary of this service.
  *
  * Two completely separate authentication schemes guard the two audiences, on purpose:
  *
- *   1. INGEST  — POST /api/v1/prompts        → a shared bearer token (INGEST_TOKEN).
- *      Handed to every developer machine's client hook. It can ONLY write.
+ *   1. INGEST  — POST /api/v1/prompts → a per-org ingest token (or the global bootstrap token).
+ *      Write only. Resolving the token also yields the TRUSTED owning tenant, stamped on the record
+ *      as {@link #INGEST_TENANT} — so a machine can't forge which org its prompts belong to.
  *
- *   2. ADMIN   — GET  /api/v1/prompts[...]    → an admin session JWT (login required).
- *      Only the compliance/security team can read/search/export the audit log.
+ *   2. ADMIN   — everything else under /api/v1/prompts + /api/v1/tenants + /api/v1/my → a session JWT.
+ *      The JWT carries role (platform|org) + tenant; reads are isolated to the caller's tenant.
+ *      Platform-only routes (/api/v1/tenants) additionally require role=platform.
  *
- * They never overlap: a leaked ingest token cannot read back a single audit record,
- * and an admin session cannot be minted from an ingest token. Keeping this decision in
- * ONE readable place is deliberate — it is the property the whole product sells.
+ * A leaked ingest token can't read a single record; an admin session can't be minted from one.
  */
 public class SecurityInterceptor implements HandlerInterceptor {
 
-    /** Request attribute holding the verified admin claims (for read/export handlers). */
+    /** Request attribute: the verified admin claims (role/tenant/sub). */
     public static final String PRINCIPAL = "pa.principal";
+    /** Request attribute: the trusted owning tenant id for an ingest (null = global/tenantless). */
+    public static final String INGEST_TENANT = "pa.ingest.tenant";
 
     private final JwtUtil jwt;
-    private final String ingestToken;
+    private final TenantService tenants;
 
-    public SecurityInterceptor(JwtUtil jwt, String ingestToken) {
+    public SecurityInterceptor(JwtUtil jwt, TenantService tenants) {
         this.jwt = jwt;
-        this.ingestToken = ingestToken;
+        this.tenants = tenants;
     }
 
     @Override
     public boolean preHandle(HttpServletRequest req, HttpServletResponse res, Object handler) throws Exception {
         if ("OPTIONS".equalsIgnoreCase(req.getMethod())) return true;
 
-        // The ONLY ingest route is `POST /api/v1/prompts`; everything else under /prompts is admin-read.
         boolean isIngest = "POST".equalsIgnoreCase(req.getMethod())
                 && "/api/v1/prompts".equals(req.getRequestURI());
+        if (isIngest) return requireIngestToken(req, res);
 
-        return isIngest ? requireIngestToken(req, res) : requireAdmin(req, res);
+        if (!requireAdmin(req, res)) return false;
+        // Platform-only management routes.
+        if (req.getRequestURI().startsWith("/api/v1/tenants") && !isPlatform(req)) return forbid(res);
+        return true;
     }
 
-    /** Ingest: constant-time compare against INGEST_TOKEN (Authorization: Bearer, or X-Ingest-Token). */
+    /** Ingest: resolve the token → owning tenant; stamp it for the controller. Unknown ⇒ fail shut. */
     private boolean requireIngestToken(HttpServletRequest req, HttpServletResponse res) throws Exception {
         String presented = bearer(req);
         if (presented == null) presented = req.getHeader("X-Ingest-Token");
-        // Empty configured token ⇒ endpoint is closed (fail shut), never open.
-        if (ingestToken == null || ingestToken.isEmpty() || presented == null
-                || !constantEquals(presented, ingestToken)) {
-            return deny(res);
-        }
+        TenantService.IngestAuth auth = tenants.resolveIngest(presented);
+        if (!auth.valid) return deny(res);
+        req.setAttribute(INGEST_TENANT, auth.tenantOrgId);   // may be null for the global token
         return true;
     }
 
@@ -66,6 +69,11 @@ public class SecurityInterceptor implements HandlerInterceptor {
         if (claims == null) return deny(res);
         req.setAttribute(PRINCIPAL, claims);
         return true;
+    }
+
+    private static boolean isPlatform(HttpServletRequest req) {
+        Map<String, Object> p = principal(req);
+        return p != null && TenantService.ROLE_PLATFORM.equals(p.get("role"));
     }
 
     private static String bearer(HttpServletRequest req) {
@@ -80,12 +88,11 @@ public class SecurityInterceptor implements HandlerInterceptor {
         return false;
     }
 
-    private static boolean constantEquals(String a, String b) {
-        byte[] x = a.getBytes(StandardCharsets.UTF_8), y = b.getBytes(StandardCharsets.UTF_8);
-        if (x.length != y.length) return false;
-        int r = 0;
-        for (int i = 0; i < x.length; i++) r |= x[i] ^ y[i];
-        return r == 0;
+    private static boolean forbid(HttpServletResponse res) throws Exception {
+        res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        res.setContentType("application/json");
+        res.getWriter().write("{\"error\":\"forbidden\"}");
+        return false;
     }
 
     /** Convenience for admin handlers. */

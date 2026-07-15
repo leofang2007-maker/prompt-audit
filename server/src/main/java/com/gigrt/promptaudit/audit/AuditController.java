@@ -1,12 +1,15 @@
 package com.gigrt.promptaudit.audit;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gigrt.promptaudit.auth.SecurityInterceptor;
+import com.gigrt.promptaudit.tenant.TenantService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -42,9 +45,11 @@ public class AuditController {
             @RequestParam(name = "session_id", required = false) String sessionId,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(name = "page_size", defaultValue = "20") int pageSize) {
+            @RequestParam(name = "page_size", defaultValue = "20") int pageSize,
+            HttpServletRequest req) {
 
         PromptQuery q = buildQuery(from, to, userEmail, orgId, userUid, repo, sessionId, keyword);
+        q.tenantOrgId = tenantScope(req);   // org admin ⇒ locked to their tenant; platform ⇒ null (all)
         int p = Math.max(1, page);
         int size = Math.min(Math.max(1, pageSize), 200);   // clamp
         Page<PromptRecord> result = service.list(q, p - 1, size);
@@ -60,11 +65,14 @@ public class AuditController {
         return resp;
     }
 
-    /** Full record incl. prompt text. */
+    /** Full record incl. prompt text. Org admins can only open rows in their own tenant. */
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> detail(@PathVariable String id) {
+    public ResponseEntity<Map<String, Object>> detail(@PathVariable String id, HttpServletRequest req) {
         PromptRecord r = service.get(id);
         if (r == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        String scope = tenantScope(req);
+        // Don't leak cross-tenant existence — a mismatched tenant looks like "not found".
+        if (scope != null && !scope.equals(r.getTenantOrgId())) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         return ResponseEntity.ok(toFull(r));
     }
 
@@ -80,9 +88,10 @@ public class AuditController {
             @RequestParam(required = false) String repo,
             @RequestParam(name = "session_id", required = false) String sessionId,
             @RequestParam(required = false) String keyword,
-            HttpServletResponse res) throws IOException {
+            HttpServletRequest req, HttpServletResponse res) throws IOException {
 
         PromptQuery q = buildQuery(from, to, userEmail, orgId, userUid, repo, sessionId, keyword);
+        q.tenantOrgId = tenantScope(req);
         List<PromptRecord> rows = service.forExport(q);
         boolean json = "json".equalsIgnoreCase(format);
 
@@ -122,9 +131,18 @@ public class AuditController {
         return m;
     }
 
+    /** The tenant a caller is locked to: their tenant id for an org admin, null for the platform admin. */
+    private static String tenantScope(HttpServletRequest req) {
+        Map<String, Object> p = SecurityInterceptor.principal(req);
+        if (p == null || TenantService.ROLE_PLATFORM.equals(p.get("role"))) return null;
+        Object t = p.get("tenant");
+        return t == null ? "__no_tenant__" : String.valueOf(t);   // fail closed if tenant claim missing
+    }
+
     private Map<String, Object> toFull(PromptRecord r) {
         Map<String, Object> m = toSummary(r);
         m.remove("prompt_preview");
+        m.put("tenant_org_id", r.getTenantOrgId());
         m.put("event_id", r.getEventId());
         m.put("user_uid", r.getUserUid());
         m.put("org_id", r.getOrgId());

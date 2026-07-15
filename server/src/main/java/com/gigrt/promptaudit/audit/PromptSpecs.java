@@ -14,6 +14,8 @@ final class PromptSpecs {
     static Specification<PromptRecord> from(PromptQuery q) {
         return (root, cq, cb) -> {
             List<Predicate> ps = new ArrayList<>();
+            // Tenant isolation — an org admin only ever sees their own tenant's rows.
+            if (notBlank(q.tenantOrgId)) ps.add(cb.equal(root.get("tenantOrgId"), q.tenantOrgId.trim()));
             if (q.from != null)      ps.add(cb.greaterThanOrEqualTo(root.get("receivedAt"), q.from));
             if (q.to != null)        ps.add(cb.lessThanOrEqualTo(root.get("receivedAt"), q.to));
             if (notBlank(q.userEmail)) ps.add(cb.equal(root.get("userEmail"), q.userEmail.trim()));

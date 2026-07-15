@@ -15,6 +15,8 @@ import java.time.Instant;
         @Index(name = "idx_user_email", columnList = "user_email"),
         @Index(name = "idx_repo", columnList = "repo"),
         @Index(name = "idx_session_id", columnList = "session_id"),
+        // Trusted tenant partition (from the ingest token) — every admin read is filtered by it.
+        @Index(name = "idx_tenant_org_id", columnList = "tenant_org_id"),
         // Identity dimensions (v1.0.2) — exact-match compliance filters.
         @Index(name = "idx_org_id", columnList = "org_id"),
         @Index(name = "idx_user_uid", columnList = "user_uid"),
@@ -33,6 +35,11 @@ public class PromptRecord {
     /** Client-supplied deterministic idempotency key (sha256 hex, 64 chars). Nullable for old clients. */
     @Column(name = "event_id", length = 64)
     private String eventId;
+
+    /** TRUSTED owning tenant, derived from the ingest token (NOT the client-claimed org_id).
+     *  Null = reported via the global bootstrap token (visible only to the platform superadmin). */
+    @Column(name = "tenant_org_id", length = 48)
+    private String tenantOrgId;
 
     /** Event time reported by the client (RFC3339 UTC), parsed to an instant. */
     @Column(name = "event_ts")
@@ -93,6 +100,8 @@ public class PromptRecord {
     public void setId(String id) { this.id = id; }
     public String getEventId() { return eventId; }
     public void setEventId(String eventId) { this.eventId = eventId; }
+    public String getTenantOrgId() { return tenantOrgId; }
+    public void setTenantOrgId(String tenantOrgId) { this.tenantOrgId = tenantOrgId; }
     public Instant getTimestamp() { return timestamp; }
     public void setTimestamp(Instant timestamp) { this.timestamp = timestamp; }
     public Instant getReceivedAt() { return receivedAt; }

@@ -26,42 +26,49 @@ demo meant to tell the story end to end, and to be extended into a full product 
 ```
 
 Same architecture as the PrismAtlas white-label platform (React + Vite SPA → Spring Boot control
-plane → shared MySQL, shipped as an ACR image via docker-compose), trimmed to a single-admin demo:
-**no multi-tenant, no RBAC, no SSO** — on purpose. And collapsed to **one container**: the server
-serves both the SPA (the built React bundle is baked into the jar's static resources) and the API,
-so there is no project nginx at all — the public entry reuses the existing shared nginx (one added
-`server_name audit.theprismatlas.com` block).
+plane → shared MySQL, shipped as an ACR image via docker-compose). Collapsed to **one container**:
+the server serves both the SPA (baked into the jar's static resources) and the API, so there is no
+project nginx — the public entry reuses the existing shared nginx (one `server_name
+audit.theprismatlas.com` block). Multi-tenant: each org has its own ingest token + its own admins.
 
 ## The security property (the headline)
 
-Two **completely separate** authentication schemes, so a leaked write token can never read the log:
+Two **completely separate** authentication schemes, plus tenant isolation:
 
 | Audience | Route | Auth | Can |
 |---|---|---|---|
-| Client hooks (every dev machine) | `POST /api/v1/prompts` | `INGEST_TOKEN` (shared bearer) | **write only** |
-| Compliance / security team | `GET /api/v1/prompts[...]`, export | admin session JWT (login) | **read only** |
+| An org's client hooks | `POST /api/v1/prompts` | that org's ingest token | **write only** |
+| Org admin | `GET /api/v1/prompts[...]`, export | session JWT (role=org, tenant=X) | **read only — that org's rows** |
+| Platform superadmin | + `/api/v1/tenants/*` | session JWT (role=platform) | manage orgs/tokens/admins; read all |
 
-They never overlap — see [`server/.../auth/SecurityInterceptor.java`](server/src/main/java/com/gigrt/promptaudit/auth/SecurityInterceptor.java),
-where the whole boundary lives in one readable place.
+Two guarantees, both in [`server/.../auth/SecurityInterceptor.java`](server/src/main/java/com/gigrt/promptaudit/auth/SecurityInterceptor.java):
+a leaked ingest token can't read a single record; and the owning org of a prompt is **derived from
+the ingest token** (stamped as the trusted `tenant_org_id`), never from the client-claimed `org_id` —
+so a machine can't forge its way into another org's data, and every admin read is filtered to its tenant.
 
 ## API
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | `POST` | `/api/v1/prompts` | ingest token | Report a prompt. Body (v1.0.2): `{event_id?, timestamp, session_id, user_email, user_name, user_uid, org_id, org_name, repo, branch, cwd, transcript_path, hostname, prompt}`. Only `prompt` required (else 400); every other field is optional and stored as-is (fail-open, missing ⇒ null). → `200 {"ok":true,"id":"pr_…"}`. **Idempotent on `event_id`**: a repeat (IDE double-fire / drain retry) returns the original id with `"deduplicated":true` — no new row. Logs prompt **length** only — never the token or text. |
-| `POST` | `/api/v1/auth/login` | — | Admin login (`{email,password}` from config) → `{token, profile}`. |
+| `POST` | `/api/v1/auth/login` | — | Login (platform superadmin from env, or an org admin from DB) → `{token, profile{role,tenant,org_name}}`. |
 | `POST` | `/api/v1/auth/logout` | admin | Stateless acknowledge (client drops token). |
-| `GET` | `/api/v1/prompts` | admin | Filtered, paginated list. Params: `from,to,user_email,org_id,user_uid,repo,session_id,keyword,page,page_size` (identity params are exact-match). Returns summaries (incl. `user_name`/`org_name`) + prompt preview + total. |
-| `GET` | `/api/v1/prompts/{id}` | admin | Full record incl. complete prompt. |
-| `GET` | `/api/v1/prompts/export?format=csv\|json` | admin | Export the current filter set as a download. |
+| `GET` | `/api/v1/prompts` | admin | Filtered, paginated list — **isolated to the caller's tenant** (platform sees all). Params: `from,to,user_email,org_id,user_uid,repo,session_id,keyword,page,page_size`. |
+| `GET` | `/api/v1/prompts/{id}` | admin | Full record (cross-tenant id ⇒ 404). |
+| `GET` | `/api/v1/prompts/export?format=csv\|json` | admin | Export the current (tenant-scoped) filter set. |
+| `GET`·`POST` | `/api/v1/tenants` · `/{id}/rotate-token` · `DELETE /{id}` | platform | List/create orgs, rotate/revoke their ingest token. |
+| `GET`·`POST` | `/api/v1/tenants/{id}/admins` · `DELETE /{id}/admins/{aid}` | platform | Manage an org's admin logins. |
+| `GET`·`POST` | `/api/v1/my/tenant` · `/tenant/rotate-token` | org admin | View / rotate **your own** org's ingest token. |
 
 ## Data model
 
 `id` · `event_id` (idempotency key, UNIQUE) · `timestamp` (client event time, RFC3339 UTC) ·
 `received_at` (server time) · `session_id` · `user_email` · `user_name` · `user_uid` · `org_id` ·
 `org_name` · `repo` · `branch` · `cwd` · `transcript_path` (abs path on the reporting machine —
-stored, never fetched) · `hostname` · `prompt` (full text) · `prompt_length`.
-Indexed on `received_at`, `user_email`, `org_id`, `user_uid`, `repo`, `session_id`; UNIQUE on `event_id`.
+stored, never fetched) · `hostname` · `prompt` (full text) · `prompt_length` ·
+`tenant_org_id` (TRUSTED owning org, from the ingest token — the isolation key).
+Indexed on `received_at`, `user_email`, `org_id`, `user_uid`, `repo`, `session_id`, `tenant_org_id`;
+UNIQUE on `event_id`. Plus `tenant` (org + its token) and `admin_user` (org logins, PBKDF2) tables.
 
 ## Local development
 
@@ -119,4 +126,6 @@ shared nginx at `audit.theprismatlas.com` — see [`ops/README.md`](ops/README.m
 
 ## Not in scope (deliberately)
 
-Multi-tenant, complex RBAC, SSO. This is a demo: clear story, readable code, easy to extend.
+SSO, fine-grained RBAC beyond the platform/org split, per-tenant theming. This is a demo:
+clear story, readable code, easy to extend. `ADMIN_EMAIL`/`ADMIN_PASSWORD` is the platform
+superadmin (bootstrap); org admins live in the DB and are created from the Organizations page.
