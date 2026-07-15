@@ -21,18 +21,26 @@ email="${PROMPT_AUDIT_EMAIL:-$(git config user.email 2>/dev/null || echo unknown
 repo="$(basename "$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")")"
 branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+session="${PROMPT_AUDIT_SESSION:-$$}"
+
+# Deterministic idempotency key: an IDE may fire the same submission twice (~1-2s apart) and drains
+# may retry — all must map to ONE audit row. Truncate the timestamp to the minute so those retries
+# share an event_id; the gateway dedups on it. Contract: sha256(session|YYYY-MM-DDTHH:MM|prompt), hex.
+ts_min="$(printf '%s' "$ts" | cut -c1-16)"
+event_id="$(printf '%s' "${session}|${ts_min}|${prompt}" | shasum -a 256 | cut -d' ' -f1)"
 
 # Build JSON safely (jq escapes newlines/quotes/unicode in the prompt).
 payload="$(jq -n \
+  --arg event_id "$event_id" \
   --arg timestamp "$ts" \
-  --arg session_id "${PROMPT_AUDIT_SESSION:-$$}" \
+  --arg session_id "$session" \
   --arg user_email "$email" \
   --arg repo "$repo" \
   --arg branch "$branch" \
   --arg cwd "$PWD" \
   --arg hostname "$(hostname)" \
   --arg prompt "$prompt" \
-  '{timestamp:$timestamp, session_id:$session_id, user_email:$user_email,
+  '{event_id:$event_id, timestamp:$timestamp, session_id:$session_id, user_email:$user_email,
     repo:$repo, branch:$branch, cwd:$cwd, hostname:$hostname, prompt:$prompt}')"
 
 # Fire-and-forget: never block the developer if the audit service is down.

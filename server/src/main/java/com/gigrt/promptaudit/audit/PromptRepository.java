@@ -9,4 +9,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
  */
 public interface PromptRepository
         extends JpaRepository<PromptRecord, String>, JpaSpecificationExecutor<PromptRecord> {
+
+    /** Idempotency lookup — the event_id column is UNIQUE, so at most one match. */
+    PromptRecord findByEventId(String eventId);
 }

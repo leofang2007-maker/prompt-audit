@@ -48,7 +48,7 @@ where the whole boundary lives in one readable place.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| `POST` | `/api/v1/prompts` | ingest token | Report a prompt. Body: `{timestamp, session_id, user_email, repo, branch, cwd, hostname, prompt}`. `prompt` required (else 400). → `200 {"ok":true,"id":"pr_…"}`. Logs prompt **length** only — never the token or text. |
+| `POST` | `/api/v1/prompts` | ingest token | Report a prompt. Body: `{event_id?, timestamp, session_id, user_email, repo, branch, cwd, hostname, prompt}`. `prompt` required (else 400). → `200 {"ok":true,"id":"pr_…"}`. **Idempotent on `event_id`**: a repeat (IDE double-fire / drain retry) returns the original id with `"deduplicated":true` — no new row. Logs prompt **length** only — never the token or text. |
 | `POST` | `/api/v1/auth/login` | — | Admin login (`{email,password}` from config) → `{token, profile}`. |
 | `POST` | `/api/v1/auth/logout` | admin | Stateless acknowledge (client drops token). |
 | `GET` | `/api/v1/prompts` | admin | Filtered, paginated list. Params: `from,to,user_email,repo,session_id,keyword,page,page_size`. Returns summaries + prompt preview + total. |
@@ -57,9 +57,10 @@ where the whole boundary lives in one readable place.
 
 ## Data model
 
-`id` · `timestamp` (client event time, RFC3339 UTC) · `received_at` (server time) · `session_id` ·
-`user_email` · `repo` · `branch` · `cwd` · `hostname` · `prompt` (full text) · `prompt_length`.
-Indexed on `received_at`, `user_email`, `repo`, `session_id` for fast filtering.
+`id` · `event_id` (client idempotency key, UNIQUE) · `timestamp` (client event time, RFC3339 UTC) ·
+`received_at` (server time) · `session_id` · `user_email` · `repo` · `branch` · `cwd` · `hostname` ·
+`prompt` (full text) · `prompt_length`.
+Indexed on `received_at`, `user_email`, `repo`, `session_id` for fast filtering; UNIQUE on `event_id`.
 
 ## Local development
 

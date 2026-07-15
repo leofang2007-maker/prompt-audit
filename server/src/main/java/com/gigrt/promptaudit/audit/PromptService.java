@@ -1,5 +1,6 @@
 package com.gigrt.promptaudit.audit;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -20,12 +21,45 @@ public class PromptService {
 
     public PromptService(PromptRepository repo) { this.repo = repo; }
 
-    /** Persist a reported prompt; assigns id + received_at. */
-    public PromptRecord ingest(PromptRecord r) {
+    /** Outcome of an ingest: the stored record, and whether it was an existing one (deduped). */
+    public static final class IngestResult {
+        public final PromptRecord record;
+        public final boolean deduplicated;
+        IngestResult(PromptRecord record, boolean deduplicated) {
+            this.record = record; this.deduplicated = deduplicated;
+        }
+    }
+
+    /**
+     * Persist a reported prompt, idempotent on {@code event_id}.
+     *
+     * If the client supplied an event_id we've already stored (IDE double-fire, SessionStart drain
+     * retry, …), we DON'T create a new row — we return the existing record so the same logical
+     * submission always maps to one pr_ id. The UNIQUE index is the hard guarantee; the pre-check
+     * handles the common case cleanly and the catch handles a genuine race.
+     */
+    public IngestResult ingest(PromptRecord r) {
+        String eventId = r.getEventId();
+        boolean hasEventId = eventId != null && !eventId.isEmpty();
+
+        if (hasEventId) {
+            PromptRecord existing = repo.findByEventId(eventId);
+            if (existing != null) return new IngestResult(existing, true);
+        }
+
         r.setId("pr_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16));
         r.setReceivedAt(Instant.now());
         r.setPromptLength(r.getPrompt() == null ? 0 : r.getPrompt().length());
-        return repo.save(r);
+        try {
+            return new IngestResult(repo.save(r), false);
+        } catch (DataIntegrityViolationException raced) {
+            // Concurrent insert of the same event_id won the UNIQUE index — return the winner.
+            if (hasEventId) {
+                PromptRecord existing = repo.findByEventId(eventId);
+                if (existing != null) return new IngestResult(existing, true);
+            }
+            throw raced;
+        }
     }
 
     /** Paged list, newest first. */

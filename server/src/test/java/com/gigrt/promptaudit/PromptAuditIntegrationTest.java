@@ -91,6 +91,61 @@ class PromptAuditIntegrationTest {
     }
 
     @Test
+    void duplicate_event_id_is_idempotent() throws Exception {
+        // Byte-identical payload (same event_id) delivered twice — the IDE double-fire / drain retry case.
+        String body = "{\"event_id\":\"" + sha(1) + "\",\"timestamp\":\"2026-07-15T09:41:00Z\","
+                + "\"session_id\":\"sess-dup\",\"prompt\":\"add idempotency keys\"}";
+
+        MvcResult first = mvc.perform(post("/api/v1/prompts").header("Authorization", INGEST)
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andReturn();
+        String id1 = json.readTree(first.getResponse().getContentAsString()).get("id").asText();
+
+        MvcResult second = mvc.perform(post("/api/v1/prompts").header("Authorization", INGEST)
+                .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id1))          // SAME id, not a new pr_
+                .andExpect(jsonPath("$.deduplicated").value(true))
+                .andReturn();
+
+        // Admin sees exactly ONE row for this event.
+        String token = adminToken();
+        mvc.perform(get("/api/v1/prompts?session_id=sess-dup").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1));
+    }
+
+    @Test
+    void different_event_id_creates_two_rows() throws Exception {
+        String base = "{\"event_id\":\"%s\",\"session_id\":\"sess-diff\",\"prompt\":\"p-%s\"}";
+        mvc.perform(post("/api/v1/prompts").header("Authorization", INGEST)
+                .contentType(MediaType.APPLICATION_JSON).content(String.format(base, sha(2), "1")))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/v1/prompts").header("Authorization", INGEST)
+                .contentType(MediaType.APPLICATION_JSON).content(String.format(base, sha(3), "2")))
+                .andExpect(status().isOk());
+
+        String token = adminToken();
+        mvc.perform(get("/api/v1/prompts?session_id=sess-diff").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(2));
+    }
+
+    /** A distinct 64-char lowercase-hex event_id per seed digit (Java 8: no String.repeat). */
+    private static String sha(int seed) {
+        char[] c = new char[64];
+        java.util.Arrays.fill(c, Character.forDigit(seed, 16));
+        return new String(c);
+    }
+
+    private String adminToken() throws Exception {
+        MvcResult login = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"admin@promptaudit.local\",\"password\":\"secret-admin\"}"))
+                .andExpect(status().isOk()).andReturn();
+        return json.readTree(login.getResponse().getContentAsString()).get("token").asText();
+    }
+
+    @Test
     void bad_admin_login_is_401() throws Exception {
         mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"admin@promptaudit.local\",\"password\":\"wrong\"}"))

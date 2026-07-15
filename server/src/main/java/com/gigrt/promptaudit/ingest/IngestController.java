@@ -36,6 +36,7 @@ public class IngestController {
         }
 
         PromptRecord r = new PromptRecord();
+        r.setEventId(trimToNull(body.event_id));
         r.setTimestamp(parseTs(body.timestamp));
         r.setSessionId(trimToNull(body.session_id));
         r.setUserEmail(trimToNull(body.user_email));
@@ -45,15 +46,20 @@ public class IngestController {
         r.setHostname(trimToNull(body.hostname));
         r.setPrompt(body.prompt);
 
-        PromptRecord saved = service.ingest(r);
+        PromptService.IngestResult res = service.ingest(r);
+        PromptRecord saved = res.record;
 
         // Safe log line: no token, no prompt text — only length + non-sensitive context.
-        log.info("ingest ok id={} user={} repo={} session={} promptLen={}",
-                saved.getId(), saved.getUserEmail(), saved.getRepo(), saved.getSessionId(), saved.getPromptLength());
+        log.info("ingest {} id={} event_id={} user={} repo={} session={} promptLen={}",
+                res.deduplicated ? "dedup" : "ok", saved.getId(), saved.getEventId(),
+                saved.getUserEmail(), saved.getRepo(), saved.getSessionId(), saved.getPromptLength());
 
+        // Same logical submission always maps to one id; a duplicate returns the ORIGINAL id (200),
+        // with deduplicated:true so client retries can tell it landed without leaking a new id.
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("ok", true);
         resp.put("id", saved.getId());
+        if (res.deduplicated) resp.put("deduplicated", true);
         return ResponseEntity.ok(resp);
     }
 

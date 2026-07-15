@@ -119,6 +119,7 @@ public class AuditController {
     private Map<String, Object> toFull(PromptRecord r) {
         Map<String, Object> m = toSummary(r);
         m.remove("prompt_preview");
+        m.put("event_id", r.getEventId());
         m.put("cwd", r.getCwd());
         m.put("prompt", r.getPrompt());
         return m;

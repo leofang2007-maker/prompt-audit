@@ -5,6 +5,7 @@ package com.gigrt.promptaudit.ingest;
  * Only `prompt` is required; the rest are best-effort context.
  */
 public class IngestRequest {
+    public String event_id;    // deterministic idempotency key (sha256 hex); optional (old clients omit it)
     public String timestamp;   // RFC3339 UTC, client event time
     public String session_id;
     public String user_email;

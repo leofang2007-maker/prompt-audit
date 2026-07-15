@@ -14,7 +14,11 @@ import java.time.Instant;
         @Index(name = "idx_received_at", columnList = "received_at"),
         @Index(name = "idx_user_email", columnList = "user_email"),
         @Index(name = "idx_repo", columnList = "repo"),
-        @Index(name = "idx_session_id", columnList = "session_id")
+        @Index(name = "idx_session_id", columnList = "session_id"),
+        // Idempotency key: the client sends a deterministic event_id per logical submission; the
+        // gateway dedups on it so an IDE's double-fire / drain retries never write duplicate rows.
+        // UNIQUE — MySQL allows multiple NULLs, so pre-event_id rows (NULL) don't collide.
+        @Index(name = "uk_event_id", columnList = "event_id", unique = true)
 })
 public class PromptRecord {
 
@@ -22,6 +26,10 @@ public class PromptRecord {
     @Id
     @Column(length = 40)
     private String id;
+
+    /** Client-supplied deterministic idempotency key (sha256 hex, 64 chars). Nullable for old clients. */
+    @Column(name = "event_id", length = 64)
+    private String eventId;
 
     /** Event time reported by the client (RFC3339 UTC), parsed to an instant. */
     @Column(name = "event_ts")
@@ -62,6 +70,8 @@ public class PromptRecord {
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
+    public String getEventId() { return eventId; }
+    public void setEventId(String eventId) { this.eventId = eventId; }
     public Instant getTimestamp() { return timestamp; }
     public void setTimestamp(Instant timestamp) { this.timestamp = timestamp; }
     public Instant getReceivedAt() { return receivedAt; }
