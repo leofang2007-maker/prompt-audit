@@ -1,19 +1,16 @@
-# Local full-stack build (dev). Builds images from source; same 2-container topology as prod
-# (web serves SPA + proxies /api → server; no dedicated edge nginx).
+# Local full-stack build (dev). ONE container: builds the SPA + server image from source and runs
+# a single process that serves both the SPA and the API.
 #   docker compose up --build      →  open http://localhost:8091
 #
 # Prefer the faster mvn + vite loop for iteration (see README "Local development").
 
 services:
-  web:
-    build: ./web
-    ports:
-      - "${WEB_PORT:-8091}:80"
-    depends_on: [server]
-    networks: [edge]
-
   server:
-    build: ./server
+    build:
+      context: .
+      dockerfile: server/Dockerfile   # multi-stage: builds web/ SPA then bakes it into the jar
+    ports:
+      - "${APP_PORT:-8091}:8080"
     environment:
       DB_HOST: ${DB_HOST:-mysql.bedrock.internal}
       DB_PORT: ${DB_PORT:-3306}
@@ -24,8 +21,3 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
       JWT_SECRET: ${JWT_SECRET:-change-me-dev-secret}
       INGEST_TOKEN: ${INGEST_TOKEN:-dev-ingest-token}
-    networks: [edge]
-
-networks:
-  edge:
-    driver: bridge

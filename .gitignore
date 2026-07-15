@@ -4,6 +4,8 @@
 # java
 server/target/
 *.class
+# transient: the SPA bundle is copied here only during the docker image build
+server/src/main/resources/static/
 
 # node / web
 web/node_modules/

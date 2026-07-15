@@ -16,22 +16,21 @@ demo meant to tell the story end to end, and to be extended into a full product 
         │ Authorization: INGEST_TOKEN  (write-only)       │ admin session (read-only)
         ▼                                                 ▼
               shared unified-ingress nginx  (also fronts prism & co.)
-                                    │  audit.theprismatlas.com
+                                    │  audit.theprismatlas.com → 127.0.0.1:8091
                                     ▼
-  ┌──────────────  web container (nginx)  ──────────────┐
-  │  /  → SPA (React)        /api/*  → server (proxy)    │   ← 2 containers total,
-  └──────────────────────────────┬──────────────────────┘      no dedicated edge nginx
-                                  ▼
-                        server (Spring Boot)
+  ┌──────────────────  server (Spring Boot)  ──────────────────┐
+  │  /  → SPA (React, baked into the jar)     /api/*  → API     │   ← 1 container
+  └──────────────────────────────┬────────────────────────────┘
                                   ▼
                   shared MySQL  (dedicated `promptaudit` DB)
 ```
 
-Same architecture as the PrismAtlas white-label platform (React + Vite SPA → nginx → Spring Boot
-control plane → shared MySQL, shipped as ACR images via docker-compose), trimmed to a single-admin
-demo: **no multi-tenant, no RBAC, no SSO** — on purpose. Just **2 containers** (`web` + `server`):
-the `web` container's own nginx serves the SPA and proxies `/api`, and the public entry reuses the
-existing shared nginx (one added `server_name audit.theprismatlas.com` block).
+Same architecture as the PrismAtlas white-label platform (React + Vite SPA → Spring Boot control
+plane → shared MySQL, shipped as an ACR image via docker-compose), trimmed to a single-admin demo:
+**no multi-tenant, no RBAC, no SSO** — on purpose. And collapsed to **one container**: the server
+serves both the SPA (the built React bundle is baked into the jar's static resources) and the API,
+so there is no project nginx at all — the public entry reuses the existing shared nginx (one added
+`server_name audit.theprismatlas.com` block).
 
 ## The security property (the headline)
 
@@ -76,7 +75,7 @@ DB_HOST=… DB_USER=… DB_PASSWORD=… ADMIN_PASSWORD=changeme INGEST_TOKEN=dev
 cd web && npm install && npm run dev   # http://localhost:5173
 ```
 
-Full stack in containers (mirrors prod — 2 containers, web on :8091):
+Full stack in one container (mirrors prod — server serves SPA + API on :8091):
 
 ```bash
 cp .env.example .env    # fill DB/admin/ingest secrets
@@ -100,9 +99,9 @@ See [`examples/`](examples/) for wiring the client hook into Claude Code or any 
 
 ```
 server/   Spring Boot control plane — ingest + audit API + JWT/ingest auth   (plain Spring Boot, Java 8)
+          server/Dockerfile builds web/ and bakes the SPA into the jar → one self-contained image
 web/      React + Vite + TS audit console — login, list/filter, detail, export
-          (its nginx.conf also proxies /api → server, so no separate edge container)
-ops/      build.sh / deploy.sh / Jenkins jobs + nginx-prompt-audit.site (shared-nginx block)
+ops/      build.sh / deploy.sh / Jenkins job + nginx-prompt-audit.site (shared-nginx block)
 examples/ client-hook reference (report_prompt.sh + Claude Code wiring)
 ```
 
@@ -113,7 +112,7 @@ All via env (see [`.env.example`](.env.example)): `DB_*` (shared MySQL, dedicate
 
 ## Deployment
 
-host2 ECS + docker-compose (2 containers), images from ACR, built by Jenkins; public entry via the
+host2 ECS + docker-compose (one container), image from ACR, built by Jenkins; public entry via the
 shared nginx at `audit.theprismatlas.com` — see [`ops/README.md`](ops/README.md).
 
 ## Not in scope (deliberately)

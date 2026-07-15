@@ -1,26 +1,19 @@
-# host1 production compose — pulls prebuilt ACR images, builds nothing.
-# Deploy: host1 has this repo checked out + a .env (see .env.example), then:
+# host1/host2 production compose — pulls the prebuilt ACR image, builds nothing.
+# Deploy: the host has this repo checked out + a .env (see .env.example), then:
 #   docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
 #
-# Only 2 containers — NO dedicated edge nginx. The `web` container's own nginx serves the SPA AND
-# proxies /api → server, so the whole project exposes ONE host port. Public entry is the EXISTING
-# shared nginx (the one already fronting prism & the other services): add ops/nginx-prompt-audit.site
-# to it, forwarding to 127.0.0.1:${WEB_PORT}.
+# ONE container: the server serves BOTH the SPA (baked into the jar's static resources) and the API.
+# Public entry is the EXISTING shared unified-ingress nginx (the one already fronting prism & the
+# other services): add ops/nginx-prompt-audit.site to it, forwarding audit.theprismatlas.com →
+# 127.0.0.1:${APP_PORT}.
 #
 # Storage: REUSES the shared host1 MySQL (mysql.bedrock.internal) via a dedicated `promptaudit` DB.
 
 services:
-  web:
-    image: ${ACR_REGISTRY}/${ACR_NAMESPACE}/promptaudit-web:${TAG}
-    ports:
-      - "127.0.0.1:${WEB_PORT:-8091}:80"   # bind localhost only; shared nginx proxies to it
-    depends_on: [server]
-    networks: [edge]
-    restart: unless-stopped
-
   server:
     image: ${ACR_REGISTRY}/${ACR_NAMESPACE}/promptaudit-server:${TAG}
-    # No published ports — only reachable by `web` over the internal network.
+    ports:
+      - "127.0.0.1:${APP_PORT:-8091}:8080"   # bind localhost only; shared nginx proxies to it
     environment:
       DB_HOST: ${DB_HOST:-mysql.bedrock.internal}
       DB_PORT: ${DB_PORT:-3306}
@@ -31,9 +24,4 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       INGEST_TOKEN: ${INGEST_TOKEN}
-    networks: [edge]
     restart: unless-stopped
-
-networks:
-  edge:
-    driver: bridge

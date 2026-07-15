@@ -21,7 +21,7 @@ docker compose -f docker-compose.prod.yml ps
 
 echo "=== health ==="
 sleep 5
-PORT="${WEB_PORT:-8091}"
+PORT="${APP_PORT:-8091}"
 curl -fsS "http://127.0.0.1:${PORT}/" >/dev/null 2>&1 && echo "SPA up" || echo "(SPA not ready)"
 # 401 on the audit list means the server is up AND correctly requiring admin auth.
 code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PORT}/api/v1/prompts") || code=000

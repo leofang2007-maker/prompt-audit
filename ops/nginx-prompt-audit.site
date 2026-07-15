@@ -5,8 +5,8 @@
 # Install: copy to /etc/nginx/sites-available/prompt-audit, symlink into sites-enabled/,
 #          nginx -t && nginx -s reload.
 #
-# Chain:  audit.theprismatlas.com -> host2 nginx :80 -> promptaudit web container :${WEB_PORT:-8091}
-#         (the web container's own nginx serves the SPA and proxies /api -> server:8080)
+# Chain:  audit.theprismatlas.com -> host2 nginx :80 -> promptaudit server container :${APP_PORT:-8091}
+#         (the single server container serves BOTH the SPA and /api)
 # DNS:    A record  audit.theprismatlas.com -> 8.219.193.199  (shared NAT EIP; same as www.theprismatlas.com)
 
 server {
@@ -16,7 +16,7 @@ server {
     client_max_body_size 4m;   # prompts can be large
 
     location / {
-        proxy_pass http://127.0.0.1:8091;   # = WEB_PORT published by docker-compose.prod.yml
+        proxy_pass http://127.0.0.1:8091;   # = APP_PORT published by docker-compose.prod.yml
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

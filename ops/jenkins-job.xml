@@ -1,6 +1,6 @@
 <?xml version="1.1" encoding="UTF-8"?><project>
   <actions/>
-  <description>prompt-audit - build web (SPA) image, push to ACR</description>
+  <description>prompt-audit - build the single self-contained image (SPA baked into Spring Boot jar), push to ACR</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <jenkins.model.BuildDiscarderProperty>
@@ -60,7 +60,6 @@ set -euo pipefail
 export ACR_REGISTRY="cxm-develop-registry-vpc.ap-southeast-1.cr.aliyuncs.com"
 export ACR_NAMESPACE="com.gigrt.cxmdev"
 export mimageVersion="$mimageVersion"
-export SERVICES="web"
 echo "=== docker login $ACR_REGISTRY ==="
 docker login --username="$USERNAME" "$ACR_REGISTRY" --password="$PASSWD"
 chmod +x ops/build.sh
