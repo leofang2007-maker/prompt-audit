@@ -26,7 +26,7 @@ Trigger with params `mbranch=master`, `mimageVersion=0.0.x`. Each job runs `ops/
 `SERVICES` preset (the build node must already be `docker login`'d to ACR — bound via the `acr`
 credential). Manual full build: `mimageVersion=0.0.2 ops/build.sh`.
 
-### 2) Deploy on host1
+### 2) Deploy on host2 (192.168.0.99 — app-layer host + shared ingress nginx)
 
 ```bash
 git clone ssh://git@192.168.0.88:7999/AIW/prompt-audit.git /opt/prompt-audit
@@ -34,6 +34,18 @@ cd /opt/prompt-audit
 cp .env.example .env      # fill DB_PASSWORD / ADMIN_PASSWORD / JWT_SECRET / INGEST_TOKEN
 ops/deploy.sh             # = docker compose -f docker-compose.prod.yml pull && up -d
 ```
+
+### 3) Wire into the shared nginx (one-time)
+
+```bash
+sudo cp ops/nginx-prompt-audit.site /etc/nginx/sites-available/prompt-audit
+sudo ln -sf /etc/nginx/sites-available/prompt-audit /etc/nginx/sites-enabled/prompt-audit
+sudo nginx -t && sudo nginx -s reload
+```
+
+Add DNS `A audit.theprismatlas.com → 8.219.193.199` (shared NAT EIP, same as www.theprismatlas.com).
+This reuses the SAME nginx that already fronts prism & the other services — prompt-audit runs NO
+nginx of its own; its `web` container just publishes `127.0.0.1:${WEB_PORT:-8091}`.
 
 ### One-time database setup (shared MySQL)
 
@@ -48,13 +60,16 @@ database keeps audit data isolated from the RWS / middle-end schemas on the same
 
 ## Network
 
-`docker-compose.prod.yml` uses one `edge` bridge network. The server reaches the shared MySQL via
-the host DNS/PVTZ name `mysql.bedrock.internal`, so no shared docker network is required. Front it
-with the host2 unified-ingress if you want a public hostname (see PrismAtlas `ops/nginx-*.site`).
+Two containers on one `edge` bridge network — **no dedicated nginx container**. `web` (nginx)
+serves the SPA and proxies `/api` → `server`; it publishes `127.0.0.1:${WEB_PORT:-8091}`. `server`
+publishes nothing (only `web` reaches it). The server reaches the shared MySQL via the host DNS/PVTZ
+name `mysql.bedrock.internal`. Public entry = the shared unified-ingress nginx
+(`audit.theprismatlas.com` → `127.0.0.1:8091`), the same nginx already fronting prism & co.
 
 ## Key files
 
 - `ops/build.sh` — build + push images (`SERVICES=web|server`), no hardcoded creds
-- `ops/deploy.sh` — host1 pull + restart + health
+- `ops/deploy.sh` — host2 pull + restart + health
+- `ops/nginx-prompt-audit.site` — server block to add to the shared ingress nginx
 - `ops/jenkins-job-web.xml` / `ops/jenkins-job-server.xml` — the two build jobs
 - `docker-compose.prod.yml` + `.env.example` — production orchestration

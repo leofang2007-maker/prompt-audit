@@ -1,0 +1,29 @@
+# Server block to ADD to the shared unified-ingress nginx (host2, 192.168.0.99) — the same nginx
+# that already fronts prism (www.theprismatlas.com) and the other services. Do NOT run a dedicated
+# nginx for this project.
+#
+# Install: copy to /etc/nginx/sites-available/prompt-audit, symlink into sites-enabled/,
+#          nginx -t && nginx -s reload.
+#
+# Chain:  audit.theprismatlas.com -> host2 nginx :80 -> promptaudit web container :${WEB_PORT:-8091}
+#         (the web container's own nginx serves the SPA and proxies /api -> server:8080)
+# DNS:    A record  audit.theprismatlas.com -> 8.219.193.199  (shared NAT EIP; same as www.theprismatlas.com)
+
+server {
+    listen 80;
+    server_name audit.theprismatlas.com;
+
+    client_max_body_size 4m;   # prompts can be large
+
+    location / {
+        proxy_pass http://127.0.0.1:8091;   # = WEB_PORT published by docker-compose.prod.yml
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_set_header Connection "";
+    }
+
+    access_log /var/log/nginx/prompt-audit.access.log;
+}

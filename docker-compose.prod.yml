@@ -2,39 +2,34 @@
 # Deploy: host1 has this repo checked out + a .env (see .env.example), then:
 #   docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
 #
-# Storage: REUSES the shared host1 MySQL (mysql.bedrock.internal) via a dedicated `promptaudit`
-# database — resolved through the host DNS/PVTZ, so no shared docker network is required here.
+# Only 2 containers — NO dedicated edge nginx. The `web` container's own nginx serves the SPA AND
+# proxies /api → server, so the whole project exposes ONE host port. Public entry is the EXISTING
+# shared nginx (the one already fronting prism & the other services): add ops/nginx-prompt-audit.site
+# to it, forwarding to 127.0.0.1:${WEB_PORT}.
+#
+# Storage: REUSES the shared host1 MySQL (mysql.bedrock.internal) via a dedicated `promptaudit` DB.
 
 services:
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "${EDGE_PORT:-8090}:80"
-    volumes:
-      - ./nginx/edge.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on: [web, server]
-    networks: [edge]
-    restart: unless-stopped
-
   web:
     image: ${ACR_REGISTRY}/${ACR_NAMESPACE}/promptaudit-web:${TAG}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8091}:80"   # bind localhost only; shared nginx proxies to it
+    depends_on: [server]
     networks: [edge]
     restart: unless-stopped
 
   server:
     image: ${ACR_REGISTRY}/${ACR_NAMESPACE}/promptaudit-server:${TAG}
+    # No published ports — only reachable by `web` over the internal network.
     environment:
-      # --- shared MySQL (dedicated DB) ---
       DB_HOST: ${DB_HOST:-mysql.bedrock.internal}
       DB_PORT: ${DB_PORT:-3306}
       DB_NAME: ${DB_NAME:-promptaudit}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
-      # --- admin login (read side) ---
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
-      # --- ingest token (write side; client hooks) ---
       INGEST_TOKEN: ${INGEST_TOKEN}
     networks: [edge]
     restart: unless-stopped

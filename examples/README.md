@@ -6,7 +6,7 @@ holds the **ingest token** (write-only) — it cannot read the audit log back.
 ## Generic: `report_prompt.sh`
 
 ```bash
-export PROMPT_AUDIT_URL=http://host1:8090
+export PROMPT_AUDIT_URL=https://audit.theprismatlas.com
 export PROMPT_AUDIT_TOKEN=<INGEST_TOKEN>
 echo "refactor the auth module to use JWT" | ./report_prompt.sh
 ```
@@ -26,7 +26,7 @@ Add to `~/.claude/settings.json` — the hook fires on every prompt you submit:
         "hooks": [
           {
             "type": "command",
-            "command": "jq -r '.prompt' | PROMPT_AUDIT_URL=http://host1:8090 PROMPT_AUDIT_TOKEN=<INGEST_TOKEN> /path/to/report_prompt.sh"
+            "command": "jq -r '.prompt' | PROMPT_AUDIT_URL=https://audit.theprismatlas.com PROMPT_AUDIT_TOKEN=<INGEST_TOKEN> /path/to/report_prompt.sh"
           }
         ]
       }

@@ -12,19 +12,26 @@ demo meant to tell the story end to end, and to be extended into a full product 
 ```
   AI coding tool (dev machine)                 Compliance / security team
         │ client hook                                    │ browser
-        │ POST /api/v1/prompts                            │ login + audit UI
+        │ POST /api/v1/prompts                            │ https://audit.theprismatlas.com
         │ Authorization: INGEST_TOKEN  (write-only)       │ admin session (read-only)
         ▼                                                 ▼
-  ┌───────────────────────────  edge nginx  ───────────────────────────┐
-  │   /api/*  → server (Spring Boot)          /  → web (React SPA)      │
-  └────────────────────────────────┬──────────────────────────────────┘
+              shared unified-ingress nginx  (also fronts prism & co.)
+                                    │  audit.theprismatlas.com
                                     ▼
-                    shared MySQL  (dedicated `promptaudit` DB)
+  ┌──────────────  web container (nginx)  ──────────────┐
+  │  /  → SPA (React)        /api/*  → server (proxy)    │   ← 2 containers total,
+  └──────────────────────────────┬──────────────────────┘      no dedicated edge nginx
+                                  ▼
+                        server (Spring Boot)
+                                  ▼
+                  shared MySQL  (dedicated `promptaudit` DB)
 ```
 
-Same architecture as the PrismAtlas white-label platform (React + Vite SPA → edge nginx →
-Spring Boot control plane → shared MySQL, shipped as ACR images via docker-compose), trimmed to a
-single-admin demo: **no multi-tenant, no RBAC, no SSO** — on purpose.
+Same architecture as the PrismAtlas white-label platform (React + Vite SPA → nginx → Spring Boot
+control plane → shared MySQL, shipped as ACR images via docker-compose), trimmed to a single-admin
+demo: **no multi-tenant, no RBAC, no SSO** — on purpose. Just **2 containers** (`web` + `server`):
+the `web` container's own nginx serves the SPA and proxies `/api`, and the public entry reuses the
+existing shared nginx (one added `server_name audit.theprismatlas.com` block).
 
 ## The security property (the headline)
 
@@ -69,22 +76,22 @@ DB_HOST=… DB_USER=… DB_PASSWORD=… ADMIN_PASSWORD=changeme INGEST_TOKEN=dev
 cd web && npm install && npm run dev   # http://localhost:5173
 ```
 
-Full stack in containers (mirrors prod):
+Full stack in containers (mirrors prod — 2 containers, web on :8091):
 
 ```bash
 cp .env.example .env    # fill DB/admin/ingest secrets
-docker compose up --build     # http://localhost:8090
+docker compose up --build     # http://localhost:8091
 ```
 
 Try it:
 
 ```bash
 # report a prompt (write side)
-curl -X POST http://localhost:8090/api/v1/prompts \
+curl -X POST http://localhost:8091/api/v1/prompts \
   -H "Authorization: Bearer dev-ingest-token" -H "Content-Type: application/json" \
   -d '{"timestamp":"2026-07-15T10:00:00Z","user_email":"dev@acme.com","repo":"acme/api","prompt":"refactor the auth module"}'
 
-# then log in at http://localhost:8090 as admin@promptaudit.local / <ADMIN_PASSWORD> and browse.
+# then log in at http://localhost:8091 as admin@promptaudit.local / <ADMIN_PASSWORD> and browse.
 ```
 
 See [`examples/`](examples/) for wiring the client hook into Claude Code or any tool.
@@ -94,8 +101,8 @@ See [`examples/`](examples/) for wiring the client hook into Claude Code or any 
 ```
 server/   Spring Boot control plane — ingest + audit API + JWT/ingest auth   (plain Spring Boot, Java 8)
 web/      React + Vite + TS audit console — login, list/filter, detail, export
-nginx/    edge reverse proxy (/api → server, / → web)
-ops/      build.sh / deploy.sh / Jenkins jobs — host1 docker-compose CI/CD
+          (its nginx.conf also proxies /api → server, so no separate edge container)
+ops/      build.sh / deploy.sh / Jenkins jobs + nginx-prompt-audit.site (shared-nginx block)
 examples/ client-hook reference (report_prompt.sh + Claude Code wiring)
 ```
 
@@ -106,7 +113,8 @@ All via env (see [`.env.example`](.env.example)): `DB_*` (shared MySQL, dedicate
 
 ## Deployment
 
-host1 ECS + docker-compose, images from ACR, built by Jenkins — see [`ops/README.md`](ops/README.md).
+host2 ECS + docker-compose (2 containers), images from ACR, built by Jenkins; public entry via the
+shared nginx at `audit.theprismatlas.com` — see [`ops/README.md`](ops/README.md).
 
 ## Not in scope (deliberately)
 
