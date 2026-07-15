@@ -107,6 +107,8 @@ public class AuditController {
         } else {
             res.setContentType("text/csv; charset=UTF-8");
             PrintWriter w = res.getWriter();
+            // UTF-8 BOM so Excel (esp. on macOS) detects the encoding instead of mangling CJK/non-ASCII.
+            w.write('\uFEFF');
             CsvWriter.write(w, rows);
             w.flush();
         }

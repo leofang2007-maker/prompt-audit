@@ -86,8 +86,10 @@ class PromptAuditIntegrationTest {
                 .andExpect(header().string("Content-Disposition",
                         org.hamcrest.Matchers.containsString("prompts-export.csv")))
                 .andReturn();
-        org.junit.jupiter.api.Assertions.assertTrue(
-                csv.getResponse().getContentAsString().contains("dev@acme.com"));
+        String csvBody = csv.getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertTrue(csvBody.contains("dev@acme.com"));
+        // Starts with a UTF-8 BOM so Excel reads non-ASCII (Chinese) correctly.
+        org.junit.jupiter.api.Assertions.assertTrue(csvBody.startsWith("\uFEFF"));
     }
 
     @Test
