@@ -8,8 +8,9 @@ import java.util.List;
 final class CsvWriter {
 
     private static final String[] HEADER = {
-            "id", "timestamp", "received_at", "session_id", "user_email",
-            "repo", "branch", "cwd", "hostname", "prompt"
+            "id", "event_id", "timestamp", "received_at", "session_id",
+            "user_email", "user_name", "user_uid", "org_id", "org_name",
+            "repo", "branch", "cwd", "transcript_path", "hostname", "prompt"
     };
 
     private CsvWriter() {}
@@ -18,11 +19,12 @@ final class CsvWriter {
         writeRow(w, HEADER);
         for (PromptRecord r : rows) {
             writeRow(w, new String[]{
-                    r.getId(),
+                    r.getId(), r.getEventId(),
                     r.getTimestamp() == null ? "" : r.getTimestamp().toString(),
                     r.getReceivedAt() == null ? "" : r.getReceivedAt().toString(),
-                    r.getSessionId(), r.getUserEmail(), r.getRepo(), r.getBranch(),
-                    r.getCwd(), r.getHostname(), r.getPrompt()
+                    r.getSessionId(), r.getUserEmail(), r.getUserName(), r.getUserUid(),
+                    r.getOrgId(), r.getOrgName(), r.getRepo(), r.getBranch(),
+                    r.getCwd(), r.getTranscriptPath(), r.getHostname(), r.getPrompt()
             });
         }
     }

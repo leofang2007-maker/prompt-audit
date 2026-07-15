@@ -17,6 +17,8 @@ final class PromptSpecs {
             if (q.from != null)      ps.add(cb.greaterThanOrEqualTo(root.get("receivedAt"), q.from));
             if (q.to != null)        ps.add(cb.lessThanOrEqualTo(root.get("receivedAt"), q.to));
             if (notBlank(q.userEmail)) ps.add(cb.equal(root.get("userEmail"), q.userEmail.trim()));
+            if (notBlank(q.orgId))     ps.add(cb.equal(root.get("orgId"), q.orgId.trim()));
+            if (notBlank(q.userUid))   ps.add(cb.equal(root.get("userUid"), q.userUid.trim()));
             if (notBlank(q.repo))      ps.add(cb.equal(root.get("repo"), q.repo.trim()));
             if (notBlank(q.sessionId)) ps.add(cb.equal(root.get("sessionId"), q.sessionId.trim()));
             if (notBlank(q.keyword)) {

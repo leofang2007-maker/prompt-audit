@@ -50,6 +50,10 @@ export function AuditList() {
             <input type="datetime-local" value={filters.to ?? ""} onChange={set("to")} /></label>
           <label className="field"><span>User email</span>
             <input value={filters.user_email ?? ""} onChange={set("user_email")} placeholder="dev@acme.com" /></label>
+          <label className="field"><span>Org ID</span>
+            <input value={filters.org_id ?? ""} onChange={set("org_id")} placeholder="019f21f9-…" /></label>
+          <label className="field"><span>User UID</span>
+            <input value={filters.user_uid ?? ""} onChange={set("user_uid")} placeholder="019f25ea-…" /></label>
           <label className="field"><span>Repo</span>
             <input value={filters.repo ?? ""} onChange={set("repo")} placeholder="acme/api" /></label>
           <label className="field"><span>Session ID</span>
@@ -76,7 +80,7 @@ export function AuditList() {
         <table className="grid">
           <thead>
             <tr>
-              <th>Received (UTC)</th><th>User</th><th>Repo</th><th>Branch</th>
+              <th>Received (UTC)</th><th>User</th><th>Name</th><th>Org</th><th>Repo</th><th>Branch</th>
               <th>Host</th><th>Len</th><th>Prompt preview</th>
             </tr>
           </thead>
@@ -85,6 +89,8 @@ export function AuditList() {
               <tr key={it.id} className="row" onClick={() => setOpenId(it.id)}>
                 <td className="mono nowrap">{fmt(it.received_at)}</td>
                 <td className="nowrap">{it.user_email ?? "—"}</td>
+                <td className="nowrap">{it.user_name ?? "—"}</td>
+                <td className="nowrap">{it.org_name ?? "—"}</td>
                 <td className="nowrap">{it.repo ?? "—"}</td>
                 <td className="nowrap">{it.branch ?? "—"}</td>
                 <td className="nowrap">{it.hostname ?? "—"}</td>
@@ -93,7 +99,7 @@ export function AuditList() {
               </tr>
             ))}
             {!loading && items.length === 0 && (
-              <tr><td colSpan={7} className="empty">No matching prompts.</td></tr>
+              <tr><td colSpan={9} className="empty">No matching prompts.</td></tr>
             )}
           </tbody>
         </table>

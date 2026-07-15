@@ -23,11 +23,15 @@ branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')"
 ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 session="${PROMPT_AUDIT_SESSION:-$$}"
 
-# Deterministic idempotency key: an IDE may fire the same submission twice (~1-2s apart) and drains
-# may retry — all must map to ONE audit row. Truncate the timestamp to the minute so those retries
-# share an event_id; the gateway dedups on it. Contract: sha256(session|YYYY-MM-DDTHH:MM|prompt), hex.
+# Idempotency key. The IDE gives a stable request_set_id (UUID) per submission — prefer it
+# (PROMPT_AUDIT_EVENT_ID). Fallback for tools without one: sha256(session|YYYY-MM-DDTHH:MM|prompt),
+# minute-truncated so an IDE double-fire / drain retry shares an event_id. The gateway dedups on it.
 ts_min="$(printf '%s' "$ts" | cut -c1-16)"
-event_id="$(printf '%s' "${session}|${ts_min}|${prompt}" | shasum -a 256 | cut -d' ' -f1)"
+event_id="${PROMPT_AUDIT_EVENT_ID:-$(printf '%s' "${session}|${ts_min}|${prompt}" | shasum -a 256 | cut -d' ' -f1)}"
+
+# Identity (v1.0.2). The real IDE hook reads these from its input (.extra.user.*); a generic shell
+# can't, so they're env-overridable and default to empty (the gateway is fail-open on all of them).
+# transcript_path is the abs path to this session's conversation JSONL, if the tool exposes one.
 
 # Build JSON safely (jq escapes newlines/quotes/unicode in the prompt).
 payload="$(jq -n \
@@ -35,13 +39,20 @@ payload="$(jq -n \
   --arg timestamp "$ts" \
   --arg session_id "$session" \
   --arg user_email "$email" \
+  --arg user_name "${PROMPT_AUDIT_USER_NAME:-}" \
+  --arg user_uid "${PROMPT_AUDIT_USER_UID:-}" \
+  --arg org_id "${PROMPT_AUDIT_ORG_ID:-}" \
+  --arg org_name "${PROMPT_AUDIT_ORG_NAME:-}" \
   --arg repo "$repo" \
   --arg branch "$branch" \
   --arg cwd "$PWD" \
+  --arg transcript_path "${PROMPT_AUDIT_TRANSCRIPT:-}" \
   --arg hostname "$(hostname)" \
   --arg prompt "$prompt" \
   '{event_id:$event_id, timestamp:$timestamp, session_id:$session_id, user_email:$user_email,
-    repo:$repo, branch:$branch, cwd:$cwd, hostname:$hostname, prompt:$prompt}')"
+    user_name:$user_name, user_uid:$user_uid, org_id:$org_id, org_name:$org_name,
+    repo:$repo, branch:$branch, cwd:$cwd, transcript_path:$transcript_path,
+    hostname:$hostname, prompt:$prompt}')"
 
 # Fire-and-forget: never block the developer if the audit service is down.
 curl -sS --max-time 3 \

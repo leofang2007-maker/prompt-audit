@@ -37,14 +37,20 @@ export function Detail({ id, onClose }: { id: string; onClose: () => void }) {
           <>
             <div className="meta-grid">
               <Meta label="ID" value={rec.id} mono />
+              <Meta label="Event ID" value={rec.event_id} mono />
               <Meta label="Event time" value={rec.timestamp} mono />
               <Meta label="Received" value={rec.received_at} mono />
-              <Meta label="User" value={rec.user_email} />
+              <Meta label="User email" value={rec.user_email} />
+              <Meta label="User name" value={rec.user_name} />
+              <Meta label="User UID" value={rec.user_uid} mono />
+              <Meta label="Org" value={rec.org_name} />
+              <Meta label="Org ID" value={rec.org_id} mono />
               <Meta label="Repo" value={rec.repo} />
               <Meta label="Branch" value={rec.branch} />
               <Meta label="Host" value={rec.hostname} />
               <Meta label="Session" value={rec.session_id} mono />
               <Meta label="CWD" value={rec.cwd} mono />
+              <Meta label="Transcript" value={rec.transcript_path} mono />
               <Meta label="Prompt length" value={String(rec.prompt_length)} />
             </div>
             <div className="prompt-head">

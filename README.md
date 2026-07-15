@@ -48,19 +48,20 @@ where the whole boundary lives in one readable place.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| `POST` | `/api/v1/prompts` | ingest token | Report a prompt. Body: `{event_id?, timestamp, session_id, user_email, repo, branch, cwd, hostname, prompt}`. `prompt` required (else 400). → `200 {"ok":true,"id":"pr_…"}`. **Idempotent on `event_id`**: a repeat (IDE double-fire / drain retry) returns the original id with `"deduplicated":true` — no new row. Logs prompt **length** only — never the token or text. |
+| `POST` | `/api/v1/prompts` | ingest token | Report a prompt. Body (v1.0.2): `{event_id?, timestamp, session_id, user_email, user_name, user_uid, org_id, org_name, repo, branch, cwd, transcript_path, hostname, prompt}`. Only `prompt` required (else 400); every other field is optional and stored as-is (fail-open, missing ⇒ null). → `200 {"ok":true,"id":"pr_…"}`. **Idempotent on `event_id`**: a repeat (IDE double-fire / drain retry) returns the original id with `"deduplicated":true` — no new row. Logs prompt **length** only — never the token or text. |
 | `POST` | `/api/v1/auth/login` | — | Admin login (`{email,password}` from config) → `{token, profile}`. |
 | `POST` | `/api/v1/auth/logout` | admin | Stateless acknowledge (client drops token). |
-| `GET` | `/api/v1/prompts` | admin | Filtered, paginated list. Params: `from,to,user_email,repo,session_id,keyword,page,page_size`. Returns summaries + prompt preview + total. |
+| `GET` | `/api/v1/prompts` | admin | Filtered, paginated list. Params: `from,to,user_email,org_id,user_uid,repo,session_id,keyword,page,page_size` (identity params are exact-match). Returns summaries (incl. `user_name`/`org_name`) + prompt preview + total. |
 | `GET` | `/api/v1/prompts/{id}` | admin | Full record incl. complete prompt. |
 | `GET` | `/api/v1/prompts/export?format=csv\|json` | admin | Export the current filter set as a download. |
 
 ## Data model
 
-`id` · `event_id` (client idempotency key, UNIQUE) · `timestamp` (client event time, RFC3339 UTC) ·
-`received_at` (server time) · `session_id` · `user_email` · `repo` · `branch` · `cwd` · `hostname` ·
-`prompt` (full text) · `prompt_length`.
-Indexed on `received_at`, `user_email`, `repo`, `session_id` for fast filtering; UNIQUE on `event_id`.
+`id` · `event_id` (idempotency key, UNIQUE) · `timestamp` (client event time, RFC3339 UTC) ·
+`received_at` (server time) · `session_id` · `user_email` · `user_name` · `user_uid` · `org_id` ·
+`org_name` · `repo` · `branch` · `cwd` · `transcript_path` (abs path on the reporting machine —
+stored, never fetched) · `hostname` · `prompt` (full text) · `prompt_length`.
+Indexed on `received_at`, `user_email`, `org_id`, `user_uid`, `repo`, `session_id`; UNIQUE on `event_id`.
 
 ## Local development
 

@@ -138,6 +138,53 @@ class PromptAuditIntegrationTest {
         return new String(c);
     }
 
+    @Test
+    void v102_fields_persist_and_are_filterable() throws Exception {
+        // The handoff's real v1.0.2 sample payload (14 fields incl. identity + transcript_path).
+        String payload = "{\"event_id\":\"833017a9-39eb-4c85-8220-2d4110fb3576\","
+                + "\"timestamp\":\"2026-07-15T10:23:33Z\",\"session_id\":\"task-a64e.session.execution\","
+                + "\"user_email\":\"larry.fs@alibaba-inc.com\",\"user_name\":\"larry.fs\","
+                + "\"user_uid\":\"019f25ea-c7c9-72dc-9ff1-e157bf1aff20\","
+                + "\"org_id\":\"019f21f9-2e3e-7286-b6ee-79a834cf0c56\",\"org_name\":\"enterprise_pdsa\","
+                + "\"repo\":\"prompt-audit\",\"branch\":\"feature/x\",\"cwd\":\"/Users/larry/Documents\","
+                + "\"transcript_path\":\"/Users/larry/.qoder/projects/x/task.jsonl\","
+                + "\"hostname\":\"wxks-Mac-mini.local\",\"prompt\":\"hello 审计\"}";
+
+        MvcResult ing = mvc.perform(post("/api/v1/prompts").header("Authorization", INGEST)
+                .contentType(MediaType.APPLICATION_JSON).content(payload))
+                .andExpect(status().isOk()).andReturn();
+        String id = json.readTree(ing.getResponse().getContentAsString()).get("id").asText();
+
+        String token = adminToken();
+
+        // Detail persists all 5 new columns (not silently dropped).
+        mvc.perform(get("/api/v1/prompts/" + id).header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user_name").value("larry.fs"))
+                .andExpect(jsonPath("$.user_uid").value("019f25ea-c7c9-72dc-9ff1-e157bf1aff20"))
+                .andExpect(jsonPath("$.org_id").value("019f21f9-2e3e-7286-b6ee-79a834cf0c56"))
+                .andExpect(jsonPath("$.org_name").value("enterprise_pdsa"))
+                .andExpect(jsonPath("$.transcript_path").value("/Users/larry/.qoder/projects/x/task.jsonl"));
+
+        // List shows compliance-attribution fields + org_id is an exact filter.
+        mvc.perform(get("/api/v1/prompts?org_id=019f21f9-2e3e-7286-b6ee-79a834cf0c56")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].user_name").value("larry.fs"))
+                .andExpect(jsonPath("$.items[0].org_name").value("enterprise_pdsa"));
+    }
+
+    @Test
+    void old_9_field_payload_still_ingests() throws Exception {
+        // Un-upgraded client (no identity fields) must still be accepted — fail-open, columns null.
+        mvc.perform(post("/api/v1/prompts").header("Authorization", INGEST)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"event_id\":\"legacy-uuid-1\",\"user_email\":\"old@acme.com\",\"prompt\":\"legacy hook\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true));
+    }
+
     private String adminToken() throws Exception {
         MvcResult login = mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"admin@promptaudit.local\",\"password\":\"secret-admin\"}"))

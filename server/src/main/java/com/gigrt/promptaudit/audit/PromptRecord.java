@@ -15,6 +15,9 @@ import java.time.Instant;
         @Index(name = "idx_user_email", columnList = "user_email"),
         @Index(name = "idx_repo", columnList = "repo"),
         @Index(name = "idx_session_id", columnList = "session_id"),
+        // Identity dimensions (v1.0.2) — exact-match compliance filters.
+        @Index(name = "idx_org_id", columnList = "org_id"),
+        @Index(name = "idx_user_uid", columnList = "user_uid"),
         // Idempotency key: the client sends a deterministic event_id per logical submission; the
         // gateway dedups on it so an IDE's double-fire / drain retries never write duplicate rows.
         // UNIQUE — MySQL allows multiple NULLs, so pre-event_id rows (NULL) don't collide.
@@ -45,6 +48,19 @@ public class PromptRecord {
     @Column(name = "user_email", length = 320)
     private String userEmail;
 
+    // ---- identity (v1.0.2) — all nullable (unauthenticated / older IDE ⇒ empty) ----
+    @Column(name = "user_name", length = 256)
+    private String userName;
+
+    @Column(name = "user_uid", length = 64)
+    private String userUid;
+
+    @Column(name = "org_id", length = 64)
+    private String orgId;
+
+    @Column(name = "org_name", length = 256)
+    private String orgName;
+
     @Column(length = 512)
     private String repo;
 
@@ -53,6 +69,11 @@ public class PromptRecord {
 
     @Column(length = 1024)
     private String cwd;
+
+    /** Absolute path (on the reporting machine) to the full conversation JSONL. Stored as an opaque
+     *  string — never fetched/parsed here; combine with {@link #hostname} for provenance. */
+    @Column(name = "transcript_path", length = 1024)
+    private String transcriptPath;
 
     @Column(length = 256)
     private String hostname;
@@ -80,12 +101,22 @@ public class PromptRecord {
     public void setSessionId(String sessionId) { this.sessionId = sessionId; }
     public String getUserEmail() { return userEmail; }
     public void setUserEmail(String userEmail) { this.userEmail = userEmail; }
+    public String getUserName() { return userName; }
+    public void setUserName(String userName) { this.userName = userName; }
+    public String getUserUid() { return userUid; }
+    public void setUserUid(String userUid) { this.userUid = userUid; }
+    public String getOrgId() { return orgId; }
+    public void setOrgId(String orgId) { this.orgId = orgId; }
+    public String getOrgName() { return orgName; }
+    public void setOrgName(String orgName) { this.orgName = orgName; }
     public String getRepo() { return repo; }
     public void setRepo(String repo) { this.repo = repo; }
     public String getBranch() { return branch; }
     public void setBranch(String branch) { this.branch = branch; }
     public String getCwd() { return cwd; }
     public void setCwd(String cwd) { this.cwd = cwd; }
+    public String getTranscriptPath() { return transcriptPath; }
+    public void setTranscriptPath(String transcriptPath) { this.transcriptPath = transcriptPath; }
     public String getHostname() { return hostname; }
     public void setHostname(String hostname) { this.hostname = hostname; }
     public String getPrompt() { return prompt; }

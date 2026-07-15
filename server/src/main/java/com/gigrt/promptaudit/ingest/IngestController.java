@@ -40,9 +40,14 @@ public class IngestController {
         r.setTimestamp(parseTs(body.timestamp));
         r.setSessionId(trimToNull(body.session_id));
         r.setUserEmail(trimToNull(body.user_email));
+        r.setUserName(trimToNull(body.user_name));
+        r.setUserUid(trimToNull(body.user_uid));
+        r.setOrgId(trimToNull(body.org_id));
+        r.setOrgName(trimToNull(body.org_name));
         r.setRepo(trimToNull(body.repo));
         r.setBranch(trimToNull(body.branch));
         r.setCwd(trimToNull(body.cwd));
+        r.setTranscriptPath(trimToNull(body.transcript_path));
         r.setHostname(trimToNull(body.hostname));
         r.setPrompt(body.prompt);
 
@@ -50,9 +55,10 @@ public class IngestController {
         PromptRecord saved = res.record;
 
         // Safe log line: no token, no prompt text — only length + non-sensitive context.
-        log.info("ingest {} id={} event_id={} user={} repo={} session={} promptLen={}",
+        log.info("ingest {} id={} event_id={} user={} org={} repo={} session={} promptLen={}",
                 res.deduplicated ? "dedup" : "ok", saved.getId(), saved.getEventId(),
-                saved.getUserEmail(), saved.getRepo(), saved.getSessionId(), saved.getPromptLength());
+                saved.getUserEmail(), saved.getOrgName(), saved.getRepo(), saved.getSessionId(),
+                saved.getPromptLength());
 
         // Same logical submission always maps to one id; a duplicate returns the ORIGINAL id (200),
         // with deduplicated:true so client retries can tell it landed without leaking a new id.

@@ -36,13 +36,15 @@ public class AuditController {
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to,
             @RequestParam(name = "user_email", required = false) String userEmail,
+            @RequestParam(name = "org_id", required = false) String orgId,
+            @RequestParam(name = "user_uid", required = false) String userUid,
             @RequestParam(required = false) String repo,
             @RequestParam(name = "session_id", required = false) String sessionId,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(name = "page_size", defaultValue = "20") int pageSize) {
 
-        PromptQuery q = buildQuery(from, to, userEmail, repo, sessionId, keyword);
+        PromptQuery q = buildQuery(from, to, userEmail, orgId, userUid, repo, sessionId, keyword);
         int p = Math.max(1, page);
         int size = Math.min(Math.max(1, pageSize), 200);   // clamp
         Page<PromptRecord> result = service.list(q, p - 1, size);
@@ -73,12 +75,14 @@ public class AuditController {
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to,
             @RequestParam(name = "user_email", required = false) String userEmail,
+            @RequestParam(name = "org_id", required = false) String orgId,
+            @RequestParam(name = "user_uid", required = false) String userUid,
             @RequestParam(required = false) String repo,
             @RequestParam(name = "session_id", required = false) String sessionId,
             @RequestParam(required = false) String keyword,
             HttpServletResponse res) throws IOException {
 
-        PromptQuery q = buildQuery(from, to, userEmail, repo, sessionId, keyword);
+        PromptQuery q = buildQuery(from, to, userEmail, orgId, userUid, repo, sessionId, keyword);
         List<PromptRecord> rows = service.forExport(q);
         boolean json = "json".equalsIgnoreCase(format);
 
@@ -108,6 +112,8 @@ public class AuditController {
         m.put("received_at", str(r.getReceivedAt()));
         m.put("session_id", r.getSessionId());
         m.put("user_email", r.getUserEmail());
+        m.put("user_name", r.getUserName());
+        m.put("org_name", r.getOrgName());
         m.put("repo", r.getRepo());
         m.put("branch", r.getBranch());
         m.put("hostname", r.getHostname());
@@ -120,19 +126,24 @@ public class AuditController {
         Map<String, Object> m = toSummary(r);
         m.remove("prompt_preview");
         m.put("event_id", r.getEventId());
+        m.put("user_uid", r.getUserUid());
+        m.put("org_id", r.getOrgId());
         m.put("cwd", r.getCwd());
+        m.put("transcript_path", r.getTranscriptPath());
         m.put("prompt", r.getPrompt());
         return m;
     }
 
     private static String str(Instant i) { return i == null ? null : i.toString(); }
 
-    private PromptQuery buildQuery(String from, String to, String userEmail,
+    private PromptQuery buildQuery(String from, String to, String userEmail, String orgId, String userUid,
                                    String repo, String sessionId, String keyword) {
         PromptQuery q = new PromptQuery();
         q.from = parseTs(from);
         q.to = parseTs(to);
         q.userEmail = userEmail;
+        q.orgId = orgId;
+        q.userUid = userUid;
         q.repo = repo;
         q.sessionId = sessionId;
         q.keyword = keyword;

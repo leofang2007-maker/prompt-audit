@@ -5,6 +5,8 @@ export interface Filters {
   from?: string;         // datetime-local value (converted to RFC3339 UTC before sending)
   to?: string;
   user_email?: string;
+  org_id?: string;
+  user_uid?: string;
   repo?: string;
   session_id?: string;
   keyword?: string;
@@ -16,6 +18,8 @@ export interface Summary {
   received_at: string | null;
   session_id: string | null;
   user_email: string | null;
+  user_name: string | null;
+  org_name: string | null;
   repo: string | null;
   branch: string | null;
   hostname: string | null;
@@ -24,7 +28,11 @@ export interface Summary {
 }
 
 export interface Detail extends Summary {
+  event_id: string | null;
+  user_uid: string | null;
+  org_id: string | null;
   cwd: string | null;
+  transcript_path: string | null;
   prompt: string | null;
 }
 
@@ -49,6 +57,8 @@ function query(f: Filters, extra: Record<string, string | number> = {}): string 
   if (from) p.set("from", from);
   if (to) p.set("to", to);
   if (f.user_email) p.set("user_email", f.user_email);
+  if (f.org_id) p.set("org_id", f.org_id);
+  if (f.user_uid) p.set("user_uid", f.user_uid);
   if (f.repo) p.set("repo", f.repo);
   if (f.session_id) p.set("session_id", f.session_id);
   if (f.keyword) p.set("keyword", f.keyword);
