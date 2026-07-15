@@ -1,0 +1,42 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: prompt-audit-server
+  datasource:
+    # Reuses the shared host1 MySQL (mysql.bedrock.internal) via a DEDICATED database `promptaudit`
+    # so audit data never mixes with RWS/middle-end schemas. All values overridable by env.
+    url: jdbc:mysql://${DB_HOST:mysql.bedrock.internal}:${DB_PORT:3306}/${DB_NAME:promptaudit}?useSSL=false&serverTimezone=UTC&characterEncoding=utf8&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+    username: ${DB_USER:promptaudit}
+    password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update          # demo: auto-create/upgrade the single table
+    open-in-view: false
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        jdbc:
+          time_zone: UTC
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  # Admin login (single admin, read side). Set strong values per deploy via env.
+  admin:
+    email: ${ADMIN_EMAIL:admin@promptaudit.local}
+    password: ${ADMIN_PASSWORD:changeme}
+  # Admin session JWT signing.
+  jwt:
+    secret: ${JWT_SECRET:change-me-dev-secret}
+    ttlSeconds: ${JWT_TTL:43200}   # 12h
+  # Ingest bearer token for client hooks (write side). Empty ⇒ ingest endpoint is CLOSED (fail shut).
+  ingest:
+    token: ${INGEST_TOKEN:}

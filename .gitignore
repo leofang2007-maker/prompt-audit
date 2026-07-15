@@ -1,0 +1,18 @@
+# secrets / local env
+.env
+
+# java
+server/target/
+*.class
+
+# node / web
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
+npm-debug.log*
+
+# ide / os
+.idea/
+.vscode/
+*.iml
+.DS_Store

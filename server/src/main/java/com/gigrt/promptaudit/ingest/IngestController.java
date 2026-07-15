@@ -1,0 +1,73 @@
+package com.gigrt.promptaudit.ingest;
+
+import com.gigrt.promptaudit.audit.PromptRecord;
+import com.gigrt.promptaudit.audit.PromptService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * Ingest endpoint for client hooks. Auth = INGEST_TOKEN (see SecurityInterceptor).
+ * Must return fast; logs metadata + prompt LENGTH only — never the token or prompt text.
+ */
+@RestController
+@RequestMapping("/api/v1/prompts")
+public class IngestController {
+
+    private static final Logger log = LoggerFactory.getLogger(IngestController.class);
+
+    private final PromptService service;
+
+    public IngestController(PromptService service) { this.service = service; }
+
+    @PostMapping
+    public ResponseEntity<Map<String, Object>> ingest(@RequestBody(required = false) IngestRequest body) {
+        if (body == null || body.prompt == null || body.prompt.trim().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Collections.singletonMap("error", "prompt_required"));
+        }
+
+        PromptRecord r = new PromptRecord();
+        r.setTimestamp(parseTs(body.timestamp));
+        r.setSessionId(trimToNull(body.session_id));
+        r.setUserEmail(trimToNull(body.user_email));
+        r.setRepo(trimToNull(body.repo));
+        r.setBranch(trimToNull(body.branch));
+        r.setCwd(trimToNull(body.cwd));
+        r.setHostname(trimToNull(body.hostname));
+        r.setPrompt(body.prompt);
+
+        PromptRecord saved = service.ingest(r);
+
+        // Safe log line: no token, no prompt text — only length + non-sensitive context.
+        log.info("ingest ok id={} user={} repo={} session={} promptLen={}",
+                saved.getId(), saved.getUserEmail(), saved.getRepo(), saved.getSessionId(), saved.getPromptLength());
+
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("ok", true);
+        resp.put("id", saved.getId());
+        return ResponseEntity.ok(resp);
+    }
+
+    /** Lenient RFC3339 parse: accepts offsets and plain instants; returns null on anything unparseable. */
+    private static Instant parseTs(String s) {
+        if (s == null || s.trim().isEmpty()) return null;
+        try { return OffsetDateTime.parse(s.trim()).toInstant(); } catch (Exception ignore) {}
+        try { return Instant.parse(s.trim()); } catch (Exception ignore) {}
+        return null;
+    }
+
+    private static String trimToNull(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+}

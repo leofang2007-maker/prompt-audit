@@ -1,0 +1,84 @@
+<?xml version="1.1" encoding="UTF-8"?><project>
+  <actions/>
+  <description>prompt-audit - build web (SPA) image, push to ACR</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <jenkins.model.BuildDiscarderProperty>
+      <strategy class="hudson.tasks.LogRotator">
+        <daysToKeep>-1</daysToKeep>
+        <numToKeep>3</numToKeep>
+        <artifactDaysToKeep>-1</artifactDaysToKeep>
+        <artifactNumToKeep>-1</artifactNumToKeep>
+      </strategy>
+    </jenkins.model.BuildDiscarderProperty>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>mbranch</name>
+          <description>git branch to build</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array"><string>master</string></a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>mimageVersion</name>
+          <description>image tag pushed to ACR</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array"><string>0.0.1</string></a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.14.3">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>http://192.168.0.88:7990/scm/aiw/prompt-audit.git</url>
+        <credentialsId>34ac27f4-3bf8-426f-875c-fe5aeadee111</credentialsId>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/$mbranch</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+set -euo pipefail
+export ACR_REGISTRY="cxm-develop-registry-vpc.ap-southeast-1.cr.aliyuncs.com"
+export ACR_NAMESPACE="com.gigrt.cxmdev"
+export mimageVersion="$mimageVersion"
+export SERVICES="web"
+echo "=== docker login $ACR_REGISTRY ==="
+docker login --username="$USERNAME" "$ACR_REGISTRY" --password="$PASSWD"
+chmod +x ops/build.sh
+ops/build.sh
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers>
+    <org.jenkinsci.plugins.credentialsbinding.impl.SecretBuildWrapper plugin="credentials-binding@523.525.vb_72269281873">
+      <bindings>
+        <org.jenkinsci.plugins.credentialsbinding.impl.UsernamePasswordMultiBinding>
+          <credentialsId>acr</credentialsId>
+          <usernameVariable>USERNAME</usernameVariable>
+          <passwordVariable>PASSWD</passwordVariable>
+        </org.jenkinsci.plugins.credentialsbinding.impl.UsernamePasswordMultiBinding>
+      </bindings>
+    </org.jenkinsci.plugins.credentialsbinding.impl.SecretBuildWrapper>
+  </buildWrappers>
+</project>
