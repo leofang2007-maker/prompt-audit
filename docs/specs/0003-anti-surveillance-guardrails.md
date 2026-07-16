@@ -1,6 +1,6 @@
 # 0003 — Anti-surveillance guardrails
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Issue:** [#3](https://github.com/leofang2007-maker/prompt-audit/issues/3)
 - **Author:** —
 - **Created:** 2026-07-16
