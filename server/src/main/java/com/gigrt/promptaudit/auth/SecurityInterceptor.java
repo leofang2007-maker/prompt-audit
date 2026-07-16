@@ -73,7 +73,10 @@ public class SecurityInterceptor implements HandlerInterceptor {
 
     private static boolean isPlatform(HttpServletRequest req) {
         Map<String, Object> p = principal(req);
-        return p != null && TenantService.ROLE_PLATFORM.equals(p.get("role"));
+        if (p == null) return false;
+        Object role = p.get("role");
+        // platform, plus legacy pre-multi-tenant "admin" sessions (which were the superadmin).
+        return TenantService.ROLE_PLATFORM.equals(role) || "admin".equals(role);
     }
 
     private static String bearer(HttpServletRequest req) {

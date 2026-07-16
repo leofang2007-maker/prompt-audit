@@ -133,10 +133,12 @@ public class AuditController {
         return m;
     }
 
-    /** The tenant a caller is locked to: their tenant id for an org admin, null for the platform admin. */
+    /** The tenant a caller is locked to: their tenant id for an ORG admin, null for platform/legacy (all).
+     *  Only role=org is isolated (fail closed if its tenant claim is missing); everything else — platform,
+     *  and legacy pre-multi-tenant "admin" sessions — sees all. */
     private static String tenantScope(HttpServletRequest req) {
         Map<String, Object> p = SecurityInterceptor.principal(req);
-        if (p == null || TenantService.ROLE_PLATFORM.equals(p.get("role"))) return null;
+        if (p == null || !TenantService.ROLE_ORG.equals(p.get("role"))) return null;
         Object t = p.get("tenant");
         return t == null ? "__no_tenant__" : String.valueOf(t);   // fail closed if tenant claim missing
     }
