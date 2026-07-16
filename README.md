@@ -5,14 +5,22 @@
 
 > Receive → store → audit the prompts developers send to AI coding tools.
 
-Developers using AI coding tools (Qoder, Claude Code, …) run a small **client hook** that reports
-every submitted prompt to this service. Compliance / security teams then browse, filter, inspect,
-and export the audit log through a web console.
+Developers using AI coding assistants (Claude Code, Cursor, GitHub Copilot, Qoder, …) run a small
+**client hook** that reports every submitted prompt to this service. Compliance / security teams
+then browse, filter, inspect, and export the audit log through a web console. Self-hosted,
+multi-tenant, Apache-2.0.
 
 ![Prompt Audit — audit console](docs/audit-log.png)
 
 *The audit console: filter by user / org / repo / keyword / time range, open any prompt in full,
 and export CSV/JSON. Each org's admins see only their own org's prompts.*
+
+**Use cases**
+
+- **Compliance & security evidence** for AI-generated code (SOC 2 / GDPR): a searchable, exportable
+  trail of every prompt developers send to AI coding assistants.
+- **Govern "shadow AI"**: see *what* prompts — and what data — leave for AI tools, per user and per org.
+- **Catch secret / IP leakage**: full-text search prompts for tokens, keys, or customer data.
 
 This repo ships **both halves**: the **server** (ingest + storage + audit console) and the **Qoder
 client plugin** ([`clients/qoder/`](clients/qoder/)) that captures each prompt and reports it.
@@ -160,3 +168,18 @@ See [`ops/README.md`](ops/README.md).
 SSO/SAML, fine-grained RBAC beyond the platform/org split, tamper-evident (hash-chained) storage,
 and client-side reporting-coverage/gap detection. `ADMIN_EMAIL`/`ADMIN_PASSWORD` is the platform
 superadmin bootstrap; org admins live in the DB and are created from the Organizations page.
+
+## Feedback & feature requests
+
+Have a need, an idea, or hit a bug? We want to hear it — the roadmap is driven by real use cases.
+
+- 💡 **Request a feature** → [open a feature request](https://github.com/leofang2007-maker/prompt-audit/issues/new?template=feature_request.yml) (tell us the problem / use case, not just a solution).
+- 💬 **Ask or discuss** → [GitHub Discussions](https://github.com/leofang2007-maker/prompt-audit/discussions).
+- 🐛 **Report a bug** → [open a bug report](https://github.com/leofang2007-maker/prompt-audit/issues/new?template=bug_report.yml).
+- 🔒 **Security issue** → report privately via a [security advisory](https://github.com/leofang2007-maker/prompt-audit/security/advisories/new).
+
+⭐ If this is useful to you, a **star** helps other teams find it.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). PRs welcome — CI must pass and changes are reviewed before merge.
