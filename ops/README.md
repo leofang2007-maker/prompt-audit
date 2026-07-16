@@ -45,10 +45,24 @@ forward your audit hostname → `127.0.0.1:8091`. Any reverse proxy (nginx, Cadd
 For evaluation, `docker compose up --build` (root `docker-compose.yml`) bundles its own MySQL and
 needs no `.env` — open `http://localhost:8091`.
 
+## CI/CD with GitHub Actions + ghcr (recommended)
+
+Two workflows ship in `.github/workflows/`:
+- **`ci.yml`** — on every push/PR: `mvn test` + `npm run build`. No secrets.
+- **`release.yml`** — on a `vX.Y.Z` tag (or manual dispatch): builds the image and pushes
+  `ghcr.io/<owner>/promptaudit-server:X.Y.Z` (+ `:latest`). Auth uses the built-in `GITHUB_TOKEN`
+  — nothing to configure. Public repo ⇒ public image ⇒ your host pulls it with no login.
+
+Deploy is **pull-based** (a host with no public inbound can't be pushed to): on the host, point
+`.env` at the image (`IMAGE_REGISTRY=ghcr.io`, `IMAGE_NAMESPACE=<owner>`, `TAG=X.Y.Z`) and run
+`ops/deploy.sh`, or install `ops/poll-deploy.sh` on cron to auto-pull new tags.
+
 ## Key files
 
-- `ops/build.sh` — build + push the single image (context = repo root, `server/Dockerfile`)
+- `.github/workflows/` — CI (test/build) + release (build + push image to ghcr)
+- `ops/build.sh` — build + push the single image manually (context = repo root, `server/Dockerfile`)
 - `ops/deploy.sh` — pull + restart + health check on the host
+- `ops/poll-deploy.sh` — optional cron: auto-pull the configured tag + restart on change
 - `ops/nginx-prompt-audit.site` — example reverse-proxy server block
 - `docker-compose.prod.yml` + `.env.example` — production orchestration (your MySQL, prebuilt image)
 - `docker-compose.yml` — zero-dependency local run (bundled MySQL)
