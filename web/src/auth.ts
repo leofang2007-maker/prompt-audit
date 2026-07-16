@@ -6,6 +6,7 @@ const PKEY = "pa.profile";
 export interface Profile {
   email: string;
   role: "platform" | "org";
+  cap?: "viewer" | "auditor";   // intra-tenant capability (spec 0003)
   tenant?: string | null;   // org id — null/absent for the platform superadmin
   org_name?: string | null;
 }
@@ -14,6 +15,12 @@ export function getToken(): string | null { return localStorage.getItem(KEY); }
 export function getProfile(): Profile | null {
   const s = localStorage.getItem(PKEY);
   return s ? (JSON.parse(s) as Profile) : null;
+}
+
+/** Can this admin reveal full prompt text / export? Platform always; org admins need the auditor role. */
+export function canViewFull(): boolean {
+  const p = getProfile();
+  return p?.role === "platform" || p?.cap === "auditor";
 }
 
 export async function login(email: string, password: string): Promise<{ ok: boolean; error?: string }> {

@@ -20,6 +20,16 @@ public class TenantService {
     public static final String ROLE_PLATFORM = "platform";
     public static final String ROLE_ORG = "org";
 
+    // Intra-tenant capability roles (spec 0003).
+    public static final String CAP_VIEWER = "viewer";     // metadata + redacted previews only
+    public static final String CAP_AUDITOR = "auditor";   // may reveal full text / export (access-logged)
+
+    /** An admin's capability, tolerating legacy NULL rows (→ auditor, to preserve pre-0003 behavior). */
+    public static String capOf(AdminUser u) {
+        String r = u.getRole();
+        return CAP_VIEWER.equals(r) ? CAP_VIEWER : CAP_AUDITOR;
+    }
+
     private final TenantRepository tenants;
     private final AdminUserRepository admins;
     private final String globalToken;      // env INGEST_TOKEN — bootstrap; its data is tenantless
@@ -64,22 +74,25 @@ public class TenantService {
 
     /** Who a successful login is. */
     public static final class Identity {
-        public final String email, role, tenantId, orgName;
-        Identity(String email, String role, String tenantId, String orgName) {
+        public final String email, role, tenantId, orgName, cap, adminId;
+        Identity(String email, String role, String tenantId, String orgName, String cap, String adminId) {
             this.email = email; this.role = role; this.tenantId = tenantId; this.orgName = orgName;
+            this.cap = cap; this.adminId = adminId;
         }
     }
 
-    /** Platform superadmin (env) first, then org-admins (DB). Null ⇒ bad credentials. */
+    /** Platform superadmin (env) first, then org-admins (DB). Null ⇒ bad credentials.
+     *  The platform superadmin is always full-access ({@link #CAP_AUDITOR}) — but still access-logged. */
     public Identity authenticate(String email, String password) {
         if (email == null || password == null) return null;
         if (constantEquals(email, platformEmail) && constantEquals(password, platformPassword)) {
-            return new Identity(platformEmail, ROLE_PLATFORM, null, null);
+            return new Identity(platformEmail, ROLE_PLATFORM, null, null, CAP_AUDITOR, null);
         }
         AdminUser u = admins.findByEmailIgnoreCase(email);
         if (u != null && PasswordHash.verify(password, u.getPasswordHash())) {
             Tenant t = tenants.findById(u.getTenantId()).orElse(null);
-            return new Identity(u.getEmail(), ROLE_ORG, u.getTenantId(), t != null ? t.getName() : null);
+            return new Identity(u.getEmail(), ROLE_ORG, u.getTenantId(),
+                    t != null ? t.getName() : null, capOf(u), u.getId());
         }
         return null;
     }
@@ -119,7 +132,8 @@ public class TenantService {
 
     public List<AdminUser> listAdmins(String tenantId) { return admins.findByTenantId(tenantId); }
 
-    public AdminUser createAdmin(String tenantId, String email, String password) {
+    /** New admins default to {@link #CAP_VIEWER} (least privilege) unless an explicit role is given. */
+    public AdminUser createAdmin(String tenantId, String email, String password, String role) {
         if (!tenants.existsById(tenantId)) throw new NotFoundException("tenant");
         if (email == null || email.trim().isEmpty() || password == null || password.isEmpty())
             throw new ConflictException("email_and_password_required");
@@ -130,8 +144,24 @@ public class TenantService {
         u.setEmail(email.trim());
         u.setPasswordHash(PasswordHash.hash(password));
         u.setTenantId(tenantId);
+        u.setRole(normalizeRole(role, CAP_VIEWER));
         u.setCreatedAt(Instant.now());
         return admins.save(u);
+    }
+
+    /** Change an admin's capability role (platform-only, tenant-scoped). Null ⇒ admin not in tenant. */
+    public AdminUser setAdminRole(String tenantId, String adminId, String role) {
+        AdminUser u = admins.findById(adminId).orElse(null);
+        if (u == null || !u.getTenantId().equals(tenantId)) return null;
+        u.setRole(normalizeRole(role, CAP_VIEWER));
+        return admins.save(u);
+    }
+
+    /** Only the two known capabilities are accepted; anything else falls back to {@code dflt}. */
+    private static String normalizeRole(String role, String dflt) {
+        if (CAP_AUDITOR.equals(role)) return CAP_AUDITOR;
+        if (CAP_VIEWER.equals(role)) return CAP_VIEWER;
+        return dflt;
     }
 
     public boolean deleteAdmin(String tenantId, String adminId) {

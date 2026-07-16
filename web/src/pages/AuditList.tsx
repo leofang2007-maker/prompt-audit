@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { exportUrl, Filters, listPrompts, Summary } from "../api";
+import { canViewFull } from "../auth";
 import { Detail } from "./Detail";
 import { IntegrityBanner } from "./IntegrityBanner";
 
@@ -16,6 +17,28 @@ export function AuditList() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [openReason, setOpenReason] = useState<string | undefined>(undefined);
+  const auditor = canViewFull();
+
+  // Opening a row: auditors/platform must give a reason (access-logged); viewers open a masked record.
+  function openRow(id: string) {
+    if (auditor) {
+      const reason = window.prompt("Reason for viewing this prompt (recorded in the access log):");
+      if (reason === null) return;                       // cancelled
+      if (!reason.trim()) { alert("A reason is required to view full prompt text."); return; }
+      setOpenReason(reason.trim());
+    } else {
+      setOpenReason(undefined);
+    }
+    setOpenId(id);
+  }
+
+  function doExport(format: "csv" | "json") {
+    const reason = window.prompt("Reason for this export (recorded in the access log):");
+    if (reason === null) return;
+    if (!reason.trim()) { alert("A reason is required to export."); return; }
+    window.location.href = exportUrl(applied, format, reason.trim());
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,8 +91,14 @@ export function AuditList() {
           <button className="btn primary" onClick={search}>Search</button>
           <button className="btn ghost" onClick={reset}>Reset</button>
           <span className="spacer" />
-          <a className="btn" href={exportUrl(applied, "csv")}>Export CSV</a>
-          <a className="btn" href={exportUrl(applied, "json")}>Export JSON</a>
+          {auditor ? (
+            <>
+              <button className="btn" onClick={() => doExport("csv")}>Export CSV</button>
+              <button className="btn" onClick={() => doExport("json")}>Export JSON</button>
+            </>
+          ) : (
+            <span className="muted" title="Export requires the auditor role">Export disabled (viewer)</span>
+          )}
         </div>
       </div>
 
@@ -88,7 +117,7 @@ export function AuditList() {
           </thead>
           <tbody>
             {items.map((it) => (
-              <tr key={it.id} className="row" onClick={() => setOpenId(it.id)}>
+              <tr key={it.id} className="row" onClick={() => openRow(it.id)}>
                 <td className="mono nowrap">{fmt(it.received_at)}</td>
                 <td className="nowrap">{it.user_email ?? "—"}</td>
                 <td className="nowrap">{it.user_name ?? "—"}</td>
@@ -120,7 +149,7 @@ export function AuditList() {
         <button className="btn ghost" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next →</button>
       </div>
 
-      {openId && <Detail id={openId} onClose={() => setOpenId(null)} />}
+      {openId && <Detail id={openId} reason={openReason} onClose={() => { setOpenId(null); setOpenReason(undefined); }} />}
     </div>
   );
 }

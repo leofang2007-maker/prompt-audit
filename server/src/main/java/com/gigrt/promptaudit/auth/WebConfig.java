@@ -24,7 +24,10 @@ public class WebConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/v1/prompts", "/api/v1/prompts/**",
                         "/api/v1/tenants", "/api/v1/tenants/**",
                         "/api/v1/my", "/api/v1/my/**",
-                        "/api/v1/integrity");
+                        "/api/v1/integrity",
+                        // spec 0003 — access log needs an admin session (any role);
+                        // /api/v1/transparency is intentionally NOT listed → public disclosure.
+                        "/api/v1/access-log", "/api/v1/access-log/**");
     }
 
     @Override

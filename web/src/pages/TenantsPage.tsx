@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   createAdmin, createTenant, deleteAdmin, deleteTenant, listAdmins, listTenants,
-  OrgAdmin, rotateTenantToken, TenantRow,
+  OrgAdmin, rotateTenantToken, setAdminRole, TenantRow,
 } from "../api";
 import { TokenValue } from "./TokenValue";
 
@@ -80,6 +80,7 @@ function AdminManager({ tenantId, onChanged }: { tenantId: string; onChanged: ()
   const [admins, setAdmins] = useState<OrgAdmin[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"viewer" | "auditor">("viewer");
   const [err, setErr] = useState<string | null>(null);
 
   async function load() {
@@ -89,8 +90,11 @@ function AdminManager({ tenantId, onChanged }: { tenantId: string; onChanged: ()
 
   async function add() {
     if (!email.trim() || !password) return;
-    try { await createAdmin(tenantId, email.trim(), password); setEmail(""); setPassword(""); await load(); onChanged(); }
+    try { await createAdmin(tenantId, email.trim(), password, role); setEmail(""); setPassword(""); setRole("viewer"); await load(); onChanged(); }
     catch (e) { setErr((e as Error).message); }
+  }
+  async function changeRole(a: OrgAdmin, next: "viewer" | "auditor") {
+    try { await setAdminRole(tenantId, a.id, next); await load(); } catch (e) { setErr((e as Error).message); }
   }
   async function remove(a: OrgAdmin) {
     if (!confirm(`Remove admin ${a.email}?`)) return;
@@ -100,12 +104,22 @@ function AdminManager({ tenantId, onChanged }: { tenantId: string; onChanged: ()
   return (
     <div className="sub-panel">
       <h4>Org admins</h4>
+      <p className="muted" style={{ marginTop: -4 }}>
+        <strong>viewer</strong> sees metadata + redacted previews; <strong>auditor</strong> can reveal
+        full prompt text &amp; export — every reveal is recorded in the access log.
+      </p>
       {err && <div className="error">{err}</div>}
       <ul className="admin-list">
         {admins.map((a) => (
           <li key={a.id}>
             <span>{a.email}</span>
-            <button className="btn ghost small" onClick={() => remove(a)}>Remove</button>
+            <span className="admin-controls">
+              <select className="role-select" value={a.role} onChange={(e) => changeRole(a, e.target.value as "viewer" | "auditor")}>
+                <option value="viewer">viewer</option>
+                <option value="auditor">auditor</option>
+              </select>
+              <button className="btn ghost small" onClick={() => remove(a)}>Remove</button>
+            </span>
           </li>
         ))}
         {admins.length === 0 && <li className="muted">No admins yet — this org can't log in until you add one.</li>}
@@ -113,6 +127,10 @@ function AdminManager({ tenantId, onChanged }: { tenantId: string; onChanged: ()
       <div className="filter-actions">
         <input placeholder="admin email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <input type="password" placeholder="initial password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <select className="role-select" value={role} onChange={(e) => setRole(e.target.value as "viewer" | "auditor")}>
+          <option value="viewer">viewer</option>
+          <option value="auditor">auditor</option>
+        </select>
         <button className="btn" onClick={add}>Add admin</button>
       </div>
     </div>

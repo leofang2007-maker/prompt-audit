@@ -1,8 +1,10 @@
 package com.gigrt.promptaudit.audit;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gigrt.promptaudit.access.AccessLogService;
 import com.gigrt.promptaudit.auth.SecurityInterceptor;
 import com.gigrt.promptaudit.tenant.TenantService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -16,6 +18,7 @@ import java.io.PrintWriter;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,9 +32,16 @@ import java.util.Map;
 public class AuditController {
 
     private final PromptService service;
+    private final AccessLogService accessLog;
+    private final boolean requireReason;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public AuditController(PromptService service) { this.service = service; }
+    public AuditController(PromptService service, AccessLogService accessLog,
+                          @Value("${app.access.require-reason:true}") boolean requireReason) {
+        this.service = service;
+        this.accessLog = accessLog;
+        this.requireReason = requireReason;
+    }
 
     /** Paged, filtered list of audit summaries. */
     @GetMapping
@@ -65,14 +75,26 @@ public class AuditController {
         return resp;
     }
 
-    /** Full record incl. prompt text. Org admins can only open rows in their own tenant. */
+    /**
+     * Full record incl. prompt text. Org admins can only open rows in their own tenant. Revealing the
+     * full prompt is gated (spec 0003): a {@code viewer} gets metadata + redacted preview only; an
+     * {@code auditor}/platform admin gets full text but must supply a {@code reason}, and the access is
+     * itself logged into the tamper-evident access log.
+     */
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> detail(@PathVariable String id, HttpServletRequest req) {
+    public ResponseEntity<Map<String, Object>> detail(@PathVariable String id,
+            @RequestParam(required = false) String reason, HttpServletRequest req) {
         PromptRecord r = service.get(id);
         if (r == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         String scope = tenantScope(req);
         // Don't leak cross-tenant existence — a mismatched tenant looks like "not found".
         if (scope != null && !scope.equals(r.getTenantOrgId())) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+
+        if (!canViewFull(req)) return ResponseEntity.ok(toMasked(r));   // viewer: no full text, not logged
+        if (requireReason && isBlank(reason))
+            return ResponseEntity.badRequest().body(Collections.singletonMap("error", "reason_required"));
+        accessLog.record(actorEmail(req), actorRole(req), r.getTenantOrgId(),
+                AccessLogService.ACTION_VIEW, r.getId(), null, trim(reason), clientIp(req));
         return ResponseEntity.ok(toFull(r));
     }
 
@@ -88,10 +110,29 @@ public class AuditController {
             @RequestParam(required = false) String repo,
             @RequestParam(name = "session_id", required = false) String sessionId,
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String reason,
             HttpServletRequest req, HttpServletResponse res) throws IOException {
+
+        // Export is inherently full-text: viewers may not; auditors/platform must give a reason (logged).
+        if (!canViewFull(req)) { res.sendError(HttpServletResponse.SC_FORBIDDEN, "export requires auditor role"); return; }
+        if (requireReason && isBlank(reason)) { res.sendError(HttpServletResponse.SC_BAD_REQUEST, "reason_required"); return; }
 
         PromptQuery q = buildQuery(from, to, userEmail, orgId, userUid, repo, sessionId, keyword);
         q.tenantOrgId = tenantScope(req);
+
+        Map<String, Object> desc = new LinkedHashMap<>();
+        desc.put("format", format);
+        if (from != null) desc.put("from", from);
+        if (to != null) desc.put("to", to);
+        if (userEmail != null) desc.put("user_email", userEmail);
+        if (orgId != null) desc.put("org_id", orgId);
+        if (userUid != null) desc.put("user_uid", userUid);
+        if (repo != null) desc.put("repo", repo);
+        if (sessionId != null) desc.put("session_id", sessionId);
+        if (keyword != null) desc.put("keyword", keyword);
+        accessLog.record(actorEmail(req), actorRole(req), q.tenantOrgId,
+                AccessLogService.ACTION_EXPORT, null, mapper.writeValueAsString(desc), trim(reason), clientIp(req));
+
         List<PromptRecord> rows = service.forExport(q);
         boolean json = "json".equalsIgnoreCase(format);
 
@@ -155,8 +196,56 @@ public class AuditController {
         m.put("cwd", r.getCwd());
         m.put("transcript_path", r.getTranscriptPath());
         m.put("prompt", r.getPrompt());
+        m.put("prompt_hidden", false);
         return m;
     }
+
+    /** What a {@code viewer} sees on detail: everything except the full prompt text (spec 0003). */
+    private Map<String, Object> toMasked(PromptRecord r) {
+        Map<String, Object> m = toSummary(r);        // keeps prompt_preview + redaction metadata
+        m.put("tenant_org_id", r.getTenantOrgId());
+        m.put("event_id", r.getEventId());
+        m.put("user_uid", r.getUserUid());
+        m.put("org_id", r.getOrgId());
+        m.put("cwd", r.getCwd());
+        m.put("transcript_path", r.getTranscriptPath());
+        m.put("prompt", null);
+        m.put("prompt_hidden", true);
+        return m;
+    }
+
+    // ---- access gating (spec 0003) ----
+
+    /** True for the platform superadmin (or legacy "admin") and for org admins with the auditor role. */
+    private static boolean canViewFull(HttpServletRequest req) {
+        Map<String, Object> p = SecurityInterceptor.principal(req);
+        if (p == null) return false;
+        Object role = p.get("role");
+        if (TenantService.ROLE_PLATFORM.equals(role) || "admin".equals(role)) return true;
+        return TenantService.CAP_AUDITOR.equals(p.get("cap"));
+    }
+
+    private static String actorEmail(HttpServletRequest req) {
+        Map<String, Object> p = SecurityInterceptor.principal(req);
+        return p == null ? null : str2(p.get("sub"));
+    }
+
+    /** Effective full-access role recorded in the log: "platform" or "auditor". */
+    private static String actorRole(HttpServletRequest req) {
+        Map<String, Object> p = SecurityInterceptor.principal(req);
+        Object role = p == null ? null : p.get("role");
+        return (TenantService.ROLE_PLATFORM.equals(role) || "admin".equals(role)) ? "platform" : "auditor";
+    }
+
+    private static String clientIp(HttpServletRequest req) {
+        String xff = req.getHeader("X-Forwarded-For");
+        if (xff != null && !xff.isEmpty()) return xff.split(",")[0].trim();
+        return req.getRemoteAddr();
+    }
+
+    private static boolean isBlank(String s) { return s == null || s.trim().isEmpty(); }
+    private static String trim(String s) { return s == null ? null : s.trim(); }
+    private static String str2(Object o) { return o == null ? null : String.valueOf(o); }
 
     private static String str(Instant i) { return i == null ? null : i.toString(); }
 
