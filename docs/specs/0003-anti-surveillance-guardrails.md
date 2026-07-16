@@ -1,6 +1,6 @@
 # 0003 — Anti-surveillance guardrails
 
-- **Status:** Draft
+- **Status:** Accepted
 - **Issue:** [#3](https://github.com/leofang2007-maker/prompt-audit/issues/3)
 - **Author:** —
 - **Created:** 2026-07-16
@@ -110,19 +110,24 @@ a trace." Retention/auto-purge, by contrast, *conflicts* with append-only storag
 Adds `admin_access_log` (+ optional chain columns) and a `role` column on `admin_user` (Hibernate
 ddl-auto). `require-reason` defaults on. Existing admins get a default role on first boot.
 
-## Open questions
+## Decisions (resolved 2026-07-16)
 
-1. **RBAC depth:** ship just `viewer`/`auditor` + access log, or a finer role model now? *(leaning
-   viewer/auditor — minimal, demoable, covers the trust story.)*
-2. **Reason required where:** every full-text detail view + every export, or only exports / bulk? *(leaning
-   both detail + export, configurable.)*
-3. **Developer transparency in v1**, or admin-side guardrails first and the dev-facing surface later?
-   *(leaning: ship the `/transparency` disclosure endpoint + README stance in v1; richer dev self-view later.)*
-4. **Chain the access log?** Reuse spec 0001's hash chain for `admin_access_log` so admin views are
-   themselves tamper-evident. *(leaning yes — it's the same primitive and strongly on-theme.)*
-5. **Retention / purpose-limitation:** in scope? It **conflicts** with append-only tamper-evident storage
-   (deleting old rows breaks the chain). Options: out of scope for #3; or a sanctioned, logged,
-   chain-re-anchoring purge as a separate spec. *(leaning: out of scope here, note as a follow-up.)*
-6. **Default role on migration** for existing admins: owner→auditor, others→viewer? Or all→auditor to
-   avoid surprising current deployments, and let owners downgrade? *(leaning owner=auditor, others=viewer,
-   but call it out since it changes current behavior.)*
+1. **RBAC depth:** ship just **`viewer`** (list + redacted previews + metadata) / **`auditor`** (full text
+   + export, reason-logged) + the access log. No heavier RBAC/ABAC (that's [#7](https://github.com/leofang2007-maker/prompt-audit/issues/7)).
+   Roles are assigned by the platform admin (who provisions org admins today).
+2. **Reason required** on **both** full-text detail view and export; configurable via
+   `app.access.require-reason` (default `true`). Listing redacted previews needs no reason.
+3. **Developer transparency in v1:** ship an unauthenticated `GET /api/v1/transparency` disclosure
+   endpoint + a README "principles" stance. A richer per-developer self-view is a follow-up.
+4. **Chain the access log — yes.** `admin_access_log` is hash-chained with the same primitive as spec
+   0001 (reusing `chain_head`, namespaced key `acl:<tenant>`), so admin views are themselves
+   tamper-evident. Exposed via `GET /api/v1/access-log` (+ a verify).
+5. **Retention / purpose-limitation — out of scope for #3.** It conflicts with append-only tamper-evident
+   storage (deleting rows breaks the chain). Follow-up: a sanctioned, logged, chain-re-anchoring purge as
+   its own spec.
+6. **Default role on migration:** the model has **no "owner"** — org admins are uniform today. So to
+   avoid silently locking out current deployments, **existing admins default to `auditor`** (they already
+   had full access), while **newly created admins default to `viewer`** (least privilege going forward).
+   The platform superadmin is always full-access **and always access-logged** (no silent super-user bypass).
+
+**Follow-ups (not in this spec):** retention/purge; richer developer self-service view; full SSO/RBAC (#7).
