@@ -9,6 +9,11 @@ Developers using AI coding tools (Qoder, Claude Code, …) run a small **client 
 every submitted prompt to this service. Compliance / security teams then browse, filter, inspect,
 and export the audit log through a web console.
 
+![Prompt Audit — audit console](docs/audit-log.png)
+
+*The audit console: filter by user / org / repo / keyword / time range, open any prompt in full,
+and export CSV/JSON. Each org's admins see only their own org's prompts.*
+
 This repo ships **both halves**: the **server** (ingest + storage + audit console) and the **Qoder
 client plugin** ([`clients/qoder/`](clients/qoder/)) that captures each prompt and reports it.
 Install the plugin, run the server — done. (Any tool with a pre-submit hook works; see
