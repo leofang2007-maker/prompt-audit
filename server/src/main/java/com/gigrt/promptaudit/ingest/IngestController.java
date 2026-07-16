@@ -74,12 +74,14 @@ public class IngestController {
         return ResponseEntity.ok(resp);
     }
 
-    /** Lenient RFC3339 parse: accepts offsets and plain instants; returns null on anything unparseable. */
+    /** Lenient RFC3339 parse: accepts offsets and plain instants; returns null on anything unparseable.
+     *  Truncated to microseconds to match the DB precision (so the chain hash re-computes on verify). */
     private static Instant parseTs(String s) {
         if (s == null || s.trim().isEmpty()) return null;
-        try { return OffsetDateTime.parse(s.trim()).toInstant(); } catch (Exception ignore) {}
-        try { return Instant.parse(s.trim()); } catch (Exception ignore) {}
-        return null;
+        Instant i = null;
+        try { i = OffsetDateTime.parse(s.trim()).toInstant(); } catch (Exception ignore) {}
+        if (i == null) { try { i = Instant.parse(s.trim()); } catch (Exception ignore) {} }
+        return i == null ? null : i.truncatedTo(java.time.temporal.ChronoUnit.MICROS);
     }
 
     private static String trimToNull(String s) {
