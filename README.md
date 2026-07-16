@@ -3,12 +3,15 @@
 [![CI](https://github.com/leofang2007-maker/prompt-audit/actions/workflows/ci.yml/badge.svg)](https://github.com/leofang2007-maker/prompt-audit/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-> Receive → store → audit the prompts developers send to AI coding tools.
+> Self-hosted audit trail for the prompts your developers send to AI coding assistants —
+> the **interaction-layer** visibility your SIEM, EDR, and per-vendor consoles don't give you.
 
-Developers using AI coding assistants (Claude Code, Cursor, GitHub Copilot, Qoder, …) run a small
-**client hook** that reports every submitted prompt to this service. Compliance / security teams
-then browse, filter, inspect, and export the audit log through a web console. Self-hosted,
-multi-tenant, Apache-2.0.
+Your developers paste code, `.env` files, and context into **Claude Code, Cursor, GitHub Copilot,
+Qoder** and more — and security/compliance has almost no visibility into *what actually goes into
+those prompts*. Network DLP sees encrypted sessions; vendor admin consoles are per-tool,
+inconsistent, and often don't show prompt **content**. prompt-audit closes that gap: a tiny
+**client hook** captures each submitted prompt and reports it to a self-hosted service where
+compliance/security can search, inspect, and export it.
 
 ![Prompt Audit — audit console](docs/audit-log.png)
 
@@ -21,6 +24,20 @@ and export CSV/JSON. Each org's admins see only their own org's prompts.*
   trail of every prompt developers send to AI coding assistants.
 - **Govern "shadow AI"**: see *what* prompts — and what data — leave for AI tools, per user and per org.
 - **Catch secret / IP leakage**: full-text search prompts for tokens, keys, or customer data.
+
+## How it's different
+
+- **Captured at the client, tool-agnostic.** Works across Claude Code / Cursor / Copilot / Qoder —
+  and even when the tool talks **straight to a vendor cloud** (no proxy in the model path, no
+  provider keys). This is the "agent-layer" blind spot SIEM/EDR and network DLP miss.
+- **Content-level, not just usage.** The full prompt text, not only "who used how many tokens" or a
+  repo name — which is all most vendor consoles expose.
+- **One place, every vendor.** A single cross-vendor view instead of a different admin panel per tool.
+- **Self-hosted — your prompts never leave your infra.** No third party holds developers' prompts
+  (which is exactly what the sensitive data in them demands). Multi-tenant + Apache-2.0.
+- **Built to be enablement, not surveillance.** Data stays on your infra; org admins see only their
+  own org. (Role-scoped access, reason-logged admin views, and secret/PII redaction are on the
+  [roadmap](#roadmap) — see below.)
 
 This repo ships **both halves**: the **server** (ingest + storage + audit console) and the **Qoder
 client plugin** ([`clients/qoder/`](clients/qoder/)) that captures each prompt and reports it.
@@ -163,11 +180,24 @@ Build one image (`ops/build.sh`) and run it with `docker-compose.prod.yml` point
 behind your own TLS reverse proxy (example nginx block in `ops/nginx-prompt-audit.site`).
 See [`ops/README.md`](ops/README.md).
 
-## Roadmap / not yet built
+## Roadmap
 
-SSO/SAML, fine-grained RBAC beyond the platform/org split, tamper-evident (hash-chained) storage,
-and client-side reporting-coverage/gap detection. `ADMIN_EMAIL`/`ADMIN_PASSWORD` is the platform
-superadmin bootstrap; org admins live in the DB and are created from the Organizations page.
+Prioritized from real needs security/compliance teams and developers voice about AI coding tools:
+
+- **Tamper-evident storage** — append-only, hash-chained records so the audit trail can't be
+  silently altered or "broken."
+- **Secret / PII redaction at capture** — detect & mask `.env` / keys / PII *before* a prompt is
+  stored, so you keep evidence without hoarding the secrets themselves.
+- **Anti-surveillance guardrails** — role-scoped access, admin views that require a reason and are
+  themselves audited, no keystroke / productivity scoring. (Trust is the adoption wedge, not a nicety.)
+- **Reporting-coverage / gap detection** — surface machines or users that *should* be reporting but went silent.
+- **More client adapters** — Claude Code, Cursor, Copilot, Codex (the Qoder plugin ships today).
+- **Audit-ready kit** — control-framework mappings (SOC 2 / ISO 27001) + sample evidence export.
+- **SSO/SAML + finer RBAC.**
+
+Want one of these sooner, or something else? See **Feedback & feature requests** below.
+> `ADMIN_EMAIL`/`ADMIN_PASSWORD` is the platform superadmin bootstrap; org admins live in the DB
+> and are created from the Organizations page.
 
 ## Feedback & feature requests
 
