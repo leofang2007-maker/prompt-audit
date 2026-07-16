@@ -182,7 +182,8 @@ See [`ops/README.md`](ops/README.md).
 
 ## Roadmap
 
-Prioritized from real needs security/compliance teams and developers voice about AI coding tools:
+Prioritized from real needs security/compliance teams and developers voice about AI coding tools
+(see the cited [Reddit research](docs/research/reddit-2026-07.md) behind these):
 
 - **Tamper-evident storage** — append-only, hash-chained records so the audit trail can't be
   silently altered or "broken."
