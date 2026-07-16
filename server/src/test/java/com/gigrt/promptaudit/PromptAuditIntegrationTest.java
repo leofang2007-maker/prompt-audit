@@ -150,7 +150,7 @@ class PromptAuditIntegrationTest {
                 + "\"org_id\":\"019f21f9-2e3e-7286-b6ee-79a834cf0c56\",\"org_name\":\"enterprise_pdsa\","
                 + "\"repo\":\"prompt-audit\",\"branch\":\"feature/x\",\"cwd\":\"/Users/larry/Documents\","
                 + "\"transcript_path\":\"/Users/larry/.qoder/projects/x/task.jsonl\","
-                + "\"hostname\":\"wxks-Mac-mini.local\",\"prompt\":\"hello 审计\"}";
+                + "\"hostname\":\"wxks-Mac-mini.local\",\"prompt\":\"hello audit\"}";
 
         MvcResult ing = mvc.perform(post("/api/v1/prompts").header("Authorization", INGEST)
                 .contentType(MediaType.APPLICATION_JSON).content(payload))
