@@ -140,6 +140,46 @@ export async function getAccessIntegrity(): Promise<Integrity> {
   return r.json();
 }
 
+// ---- reporting-coverage / gap detection (spec 0004) ----
+
+export interface SilentHost {
+  entity: string;
+  kind: string;
+  last_seen: string;
+  report_count: number;
+  expected_interval_sec: number;
+  silent_for_sec: number;
+}
+export interface NeverReported { entity: string; kind: string; }
+export interface Coverage {
+  generated_at: string;
+  total_hosts: number;
+  active_hosts: number;
+  silent: SilentHost[];
+  never_reported: NeverReported[];
+  roster_size: number;
+  thresholds: { silent_multiplier: number; floor_hours: number; min_history: number };
+}
+
+export async function getCoverage(): Promise<Coverage> {
+  const r = await authedFetch("/api/v1/coverage");
+  if (!r.ok) throw new Error(`coverage failed: ${r.status}`);
+  return r.json();
+}
+export async function getRoster(): Promise<string[]> {
+  const r = await authedFetch("/api/v1/coverage/roster");
+  if (!r.ok) throw new Error(`roster failed: ${r.status}`);
+  return (await r.json()).entities ?? [];
+}
+export async function setRoster(entities: string[]): Promise<number> {
+  const r = await authedFetch("/api/v1/coverage/roster", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ entities }),
+  });
+  if (!r.ok) throw new Error(`set roster failed: ${r.status}`);
+  return (await r.json()).size ?? 0;
+}
+
 // ---- transparency disclosure (spec 0003, public) ----
 
 export interface Transparency {

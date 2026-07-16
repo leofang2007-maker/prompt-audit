@@ -27,7 +27,9 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/v1/integrity",
                         // spec 0003 — access log needs an admin session (any role);
                         // /api/v1/transparency is intentionally NOT listed → public disclosure.
-                        "/api/v1/access-log", "/api/v1/access-log/**");
+                        "/api/v1/access-log", "/api/v1/access-log/**",
+                        // spec 0004 — reporting-coverage / gap detection (admin session).
+                        "/api/v1/coverage", "/api/v1/coverage/**");
     }
 
     @Override

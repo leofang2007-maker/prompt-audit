@@ -6,8 +6,9 @@ import { TenantsPage } from "./pages/TenantsPage";
 import { MyTokenPage } from "./pages/MyTokenPage";
 import { AccessLogPage } from "./pages/AccessLogPage";
 import { TransparencyPage } from "./pages/TransparencyPage";
+import { CoveragePage } from "./pages/CoveragePage";
 
-type View = "audit" | "access" | "tenants" | "mytoken" | "transparency";
+type View = "audit" | "access" | "coverage" | "tenants" | "mytoken" | "transparency";
 
 export function App() {
   const [authed, setAuthed] = useState<boolean>(!!getToken());
@@ -36,6 +37,9 @@ export function App() {
           <button className={"tab" + (view === "access" ? " active" : "")} onClick={() => setView("access")}>
             Access log
           </button>
+          <button className={"tab" + (view === "coverage" ? " active" : "")} onClick={() => setView("coverage")}>
+            Coverage
+          </button>
           {isPlatform && (
             <button className={"tab" + (view === "tenants" ? " active" : "")} onClick={() => setView("tenants")}>
               Organizations
@@ -63,6 +67,7 @@ export function App() {
       <main className="main">
         {view === "audit" && <AuditList />}
         {view === "access" && <AccessLogPage />}
+        {view === "coverage" && <CoveragePage />}
         {view === "tenants" && isPlatform && <TenantsPage />}
         {view === "mytoken" && !isPlatform && <MyTokenPage />}
         {view === "transparency" && <TransparencyPage />}

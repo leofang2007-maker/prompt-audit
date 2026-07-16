@@ -52,3 +52,10 @@ app:
   # to drop the reason requirement (access is still logged).
   access:
     require-reason: ${ACCESS_REQUIRE_REASON:true}
+  # Reporting-coverage / gap detection (spec 0004). A host is "went-dark" when it has been silent for
+  # longer than max(silent-multiplier × its average report interval, floor-hours), and only after it
+  # has at least min-history reports (so new/low-volume hosts aren't false-flagged).
+  coverage:
+    silent-multiplier: ${COVERAGE_SILENT_MULTIPLIER:3.0}
+    floor-hours: ${COVERAGE_FLOOR_HOURS:24}
+    min-history: ${COVERAGE_MIN_HISTORY:5}

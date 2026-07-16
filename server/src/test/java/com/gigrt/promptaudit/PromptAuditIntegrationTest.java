@@ -489,7 +489,75 @@ class PromptAuditIntegrationTest {
                 .andExpect(status().isForbidden());
     }
 
+    // ---- reporting-coverage / gap detection (spec 0004) ----
+
+    @Test
+    void coverage_flags_went_dark_hosts_and_counts_active() throws Exception {
+        String platform = "Bearer " + adminToken();
+        String tok = createTenant(platform, "Coverage");
+        String tid = tenantIdByName(platform, "Coverage");
+        java.time.Instant now = java.time.Instant.now();
+
+        // deadhost: 6 daily reports ending 10 days ago → cadence ~1d, silent 10d ⇒ went-dark
+        for (int d = 15; d >= 10; d--) seed(tid, "deadhost.local", now.minus(java.time.Duration.ofDays(d)));
+        // livehost: recent reports ⇒ active (and too little history to ever be flagged)
+        seed(tid, "livehost.local", now.minus(java.time.Duration.ofHours(2)));
+        seed(tid, "livehost.local", now.minus(java.time.Duration.ofHours(1)));
+        seed(tid, "livehost.local", now.minus(java.time.Duration.ofMinutes(5)));
+
+        String admin = "Bearer " + createAdminWithRole(platform, tid, "cov@coverage.example", "cov-pw-1234", "viewer");
+        mvc.perform(get("/api/v1/coverage").header("Authorization", admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total_hosts").value(2))
+                .andExpect(jsonPath("$.active_hosts").value(1))
+                .andExpect(jsonPath("$.silent.length()").value(1))
+                .andExpect(jsonPath("$.silent[0].entity").value("deadhost.local"))
+                .andExpect(jsonPath("$.silent[0].kind").value("went_dark"));
+    }
+
+    @Test
+    void coverage_roster_surfaces_never_reported_hosts() throws Exception {
+        String platform = "Bearer " + adminToken();
+        String tok = createTenant(platform, "Coverage2");
+        String tid = tenantIdByName(platform, "Coverage2");
+        seed(tid, "livehost2.local", java.time.Instant.now().minus(java.time.Duration.ofMinutes(10)));
+
+        String admin = "Bearer " + createAdminWithRole(platform, tid, "cov2@coverage.example", "cov-pw-1234", "auditor");
+        // set the tenant's expected roster
+        mvc.perform(post("/api/v1/coverage/roster").header("Authorization", admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"entities\":[\"ghost.local\",\"livehost2.local\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(2));
+
+        // ghost.local is on the roster but never reported; livehost2 has, so it's not flagged
+        mvc.perform(get("/api/v1/coverage").header("Authorization", admin))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roster_size").value(2))
+                .andExpect(jsonPath("$.never_reported.length()").value(1))
+                .andExpect(jsonPath("$.never_reported[0].entity").value("ghost.local"));
+    }
+
+    @Test
+    void coverage_requires_admin_auth() throws Exception {
+        mvc.perform(get("/api/v1/coverage")).andExpect(status().isUnauthorized());
+    }
+
     // ---- helpers ----
+
+    private int seedSeq = 0;
+
+    /** Persist a synthetic prompt record with a controlled received_at (bypasses ingest for coverage tests). */
+    private void seed(String tenant, String host, java.time.Instant when) {
+        PromptRecord r = new PromptRecord();
+        r.setId("pr_seed_" + (seedSeq++));
+        r.setTenantOrgId(tenant);
+        r.setHostname(host);
+        r.setReceivedAt(when);
+        r.setPrompt("x");
+        r.setPromptLength(1);
+        promptRepo.save(r);
+    }
 
     private String createAdminWithRole(String platformAuth, String tenantId, String email, String pw, String role) throws Exception {
         mvc.perform(post("/api/v1/tenants/" + tenantId + "/admins").header("Authorization", platformAuth)
