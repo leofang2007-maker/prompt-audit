@@ -1,4 +1,4 @@
-// Admin session: login → JWT in localStorage, authed fetch, logout. (Same shape as PrismAtlas web.)
+// Admin session: login → JWT in localStorage, authed fetch, logout.
 
 const KEY = "pa.token";
 const PKEY = "pa.profile";

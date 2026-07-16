@@ -4,10 +4,8 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <!-- Plain Spring Boot (Java 8). Same architectural shape as PrismAtlas control-plane
-       (REST controllers + HS256 JWT + interceptor auth), but with NO HSF/Pandora/midend
-       coupling, so the repo builds & runs with zero internal-Nexus dependency:
-         git clone → mvn spring-boot:run  (or docker compose up). -->
+  <!-- Plain Spring Boot (Java 8): REST controllers + HS256 JWT + interceptor auth + JPA.
+       Zero external service dependencies — git clone → mvn spring-boot:run (or docker compose up). -->
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>

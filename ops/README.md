@@ -1,51 +1,19 @@
 # Ops — prompt-audit
 
-Deployment form: **host2 ECS + docker-compose** (app-layer host that also runs the shared ingress
-nginx), same infra as PrismAtlas / the middle-end. **One container**, one image, one Jenkins job.
+Production form: **docker-compose, one container**, behind your own TLS reverse proxy, pointed at
+your MySQL. The server image is self-contained (SPA baked into the Spring Boot jar).
 
-## CI/CD loop
-
-```
-push (Bitbucket AIW/prompt-audit)
-   └─> Jenkins dev-promptaudit  ── ops/build.sh ──> promptaudit-server image → ACR
-       (server/Dockerfile builds the SPA + bakes it into the Spring Boot jar)
-   └─> host2: ops/deploy.sh  ── compose -f docker-compose.prod.yml pull && up -d ──> live
-```
-
-### 1) Import the Jenkins job (one-time)
+## 1) Build the image
 
 ```bash
-curl -X POST -u admin:<pwd> -H "Content-Type: application/xml" \
-  --data-binary @ops/jenkins-job.xml \
-  "http://192.168.0.144:8080/createItem?name=dev-promptaudit"
+docker login <your-registry>
+VERSION=0.0.1 IMAGE_REGISTRY=<your-registry> IMAGE_NAMESPACE=<you> ops/build.sh
 ```
 
-Trigger with params `mbranch=master`, `mimageVersion=0.0.x`. The job runs `ops/build.sh` (the build
-node must already be `docker login`'d to ACR — bound via the `acr` credential). Manual build:
-`mimageVersion=0.0.2 ops/build.sh`.
+`ops/build.sh` builds from the repo root with `server/Dockerfile` (multi-stage: builds the web/ SPA,
+bakes it into the jar) and pushes `…/promptaudit-server:VERSION`. Wire this into whatever CI you use.
 
-### 2) Deploy on host2 (192.168.0.99 — app-layer host + shared ingress nginx)
-
-```bash
-git clone ssh://git@192.168.0.88:7999/AIW/prompt-audit.git /opt/prompt-audit
-cd /opt/prompt-audit
-cp .env.example .env      # fill DB_PASSWORD / ADMIN_PASSWORD / JWT_SECRET / INGEST_TOKEN
-ops/deploy.sh             # = docker compose -f docker-compose.prod.yml pull && up -d
-```
-
-### 3) Wire into the shared nginx (one-time)
-
-```bash
-sudo cp ops/nginx-prompt-audit.site /etc/nginx/sites-available/prompt-audit
-sudo ln -sf /etc/nginx/sites-available/prompt-audit /etc/nginx/sites-enabled/prompt-audit
-sudo nginx -t && sudo nginx -s reload
-```
-
-DNS `A audit.theprismatlas.com → 8.219.193.199` (shared NAT EIP, same as www.theprismatlas.com).
-This reuses the SAME nginx already fronting prism & the other services — prompt-audit runs NO nginx
-of its own; the server container just publishes `127.0.0.1:${APP_PORT:-8091}`.
-
-### One-time database setup (shared MySQL)
+## 2) Prepare MySQL (one-time)
 
 ```sql
 CREATE DATABASE IF NOT EXISTS promptaudit CHARACTER SET utf8mb4;
@@ -53,20 +21,34 @@ CREATE USER 'promptaudit'@'%' IDENTIFIED BY '<strong-password>';
 GRANT ALL PRIVILEGES ON promptaudit.* TO 'promptaudit'@'%';
 ```
 
-The server auto-creates its single table on first boot (`ddl-auto=update`). The `promptaudit`
-database keeps audit data isolated from the RWS / middle-end schemas on the same MySQL server.
+The server auto-creates its tables on first boot (`ddl-auto=update`). A dedicated `promptaudit`
+database keeps audit data isolated from anything else on that MySQL server.
 
-## Network
+## 3) Deploy
 
-**One container.** The server (Spring Boot) serves both the SPA (baked into the jar) and the API,
-and publishes `127.0.0.1:${APP_PORT:-8091}`. It reaches the shared MySQL via the host DNS/PVTZ name
-`mysql.bedrock.internal`. Public entry = the shared unified-ingress nginx
-(`audit.theprismatlas.com` → `127.0.0.1:8091`), the same nginx already fronting prism & co.
+```bash
+git clone <this-repo> /opt/prompt-audit
+cd /opt/prompt-audit
+cp .env.example .env      # set IMAGE_*, DB_*, ADMIN_PASSWORD, JWT_SECRET, INGEST_TOKEN
+ops/deploy.sh             # = docker compose -f docker-compose.prod.yml pull && up -d + health
+```
+
+The server publishes `127.0.0.1:${APP_PORT:-8091}` (localhost only). Point your reverse proxy at it.
+
+## 4) Reverse proxy
+
+`ops/nginx-prompt-audit.site` is an example nginx server block: terminate TLS at your proxy and
+forward your audit hostname → `127.0.0.1:8091`. Any reverse proxy (nginx, Caddy, Traefik) works.
+
+## Local run (no external MySQL)
+
+For evaluation, `docker compose up --build` (root `docker-compose.yml`) bundles its own MySQL and
+needs no `.env` — open `http://localhost:8091`.
 
 ## Key files
 
 - `ops/build.sh` — build + push the single image (context = repo root, `server/Dockerfile`)
-- `ops/deploy.sh` — host2 pull + restart + health
-- `ops/nginx-prompt-audit.site` — server block to add to the shared ingress nginx
-- `ops/jenkins-job.xml` — the build job (`dev-promptaudit`)
-- `docker-compose.prod.yml` + `.env.example` — production orchestration
+- `ops/deploy.sh` — pull + restart + health check on the host
+- `ops/nginx-prompt-audit.site` — example reverse-proxy server block
+- `docker-compose.prod.yml` + `.env.example` — production orchestration (your MySQL, prebuilt image)
+- `docker-compose.yml` — zero-dependency local run (bundled MySQL)

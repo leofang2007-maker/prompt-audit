@@ -6,30 +6,25 @@ Developers using AI coding tools (Qoder, Claude Code, …) run a small **client 
 every submitted prompt to this service. Compliance / security teams then browse, filter, inspect,
 and export the audit log through a web console.
 
-This is the **server side** (ingest + storage + audit UI) — a clean, minimal, open-source-friendly
-demo meant to tell the story end to end, and to be extended into a full product later.
+This is the **server side** (ingest + storage + audit UI) — clean, minimal, self-hostable.
 
 ```
   AI coding tool (dev machine)                 Compliance / security team
         │ client hook                                    │ browser
-        │ POST /api/v1/prompts                            │ https://audit.theprismatlas.com
+        │ POST /api/v1/prompts                            │ your reverse proxy (TLS)
         │ Authorization: INGEST_TOKEN  (write-only)       │ admin session (read-only)
         ▼                                                 ▼
-              shared unified-ingress nginx  (also fronts prism & co.)
-                                    │  audit.theprismatlas.com → 127.0.0.1:8091
-                                    ▼
   ┌──────────────────  server (Spring Boot)  ──────────────────┐
   │  /  → SPA (React, baked into the jar)     /api/*  → API     │   ← 1 container
   └──────────────────────────────┬────────────────────────────┘
                                   ▼
-                  shared MySQL  (dedicated `promptaudit` DB)
+                            MySQL  (`promptaudit` DB)
 ```
 
-Same architecture as the PrismAtlas white-label platform (React + Vite SPA → Spring Boot control
-plane → shared MySQL, shipped as an ACR image via docker-compose). Collapsed to **one container**:
-the server serves both the SPA (baked into the jar's static resources) and the API, so there is no
-project nginx — the public entry reuses the existing shared nginx (one `server_name
-audit.theprismatlas.com` block). Multi-tenant: each org has its own ingest token + its own admins.
+**One container**: the server serves both the SPA (the built React bundle is baked into the jar's
+static resources) and the API — no separate web/nginx process. Put it behind your own TLS reverse
+proxy. Multi-tenant: each org has its own ingest token + its own admin logins, with strict data
+isolation between orgs.
 
 ## The security property (the headline)
 
@@ -70,25 +65,29 @@ stored, never fetched) · `hostname` · `prompt` (full text) · `prompt_length` 
 Indexed on `received_at`, `user_email`, `org_id`, `user_uid`, `repo`, `session_id`, `tenant_org_id`;
 UNIQUE on `event_id`. Plus `tenant` (org + its token) and `admin_user` (org logins, PBKDF2) tables.
 
-## Local development
+## Quick start
 
-Fastest loop — backend + frontend separately:
+One command, zero external dependencies (bundles its own MySQL):
 
 ```bash
-# terminal 1 — backend (H2 in-memory in tests; for a run, point DB_* at any MySQL)
+docker compose up --build     # → http://localhost:8091
+```
+
+Defaults (override in a `.env`): admin `admin@promptaudit.local` / `changeme`, ingest token
+`dev-ingest-token`. Log in, create an org under **Organizations**, and it gets its own ingest token.
+
+## Local development
+
+Faster iteration loop — backend + frontend separately:
+
+```bash
+# terminal 1 — backend (tests use in-memory H2; for a run, point DB_* at any MySQL)
 cd server
 DB_HOST=… DB_USER=… DB_PASSWORD=… ADMIN_PASSWORD=changeme INGEST_TOKEN=dev-token \
   mvn spring-boot:run              # :8080
 
 # terminal 2 — frontend (vite proxies /api → :8080)
 cd web && npm install && npm run dev   # http://localhost:5173
-```
-
-Full stack in one container (mirrors prod — server serves SPA + API on :8091):
-
-```bash
-cp .env.example .env    # fill DB/admin/ingest secrets
-docker compose up --build     # http://localhost:8091
 ```
 
 Try it:
@@ -110,22 +109,24 @@ See [`examples/`](examples/) for wiring the client hook into Claude Code or any 
 server/   Spring Boot control plane — ingest + audit API + JWT/ingest auth   (plain Spring Boot, Java 8)
           server/Dockerfile builds web/ and bakes the SPA into the jar → one self-contained image
 web/      React + Vite + TS audit console — login, list/filter, detail, export
-ops/      build.sh / deploy.sh / Jenkins job + nginx-prompt-audit.site (shared-nginx block)
+ops/      build.sh / deploy.sh / example reverse-proxy config for production
 examples/ client-hook reference (report_prompt.sh + Claude Code wiring)
 ```
 
 ## Configuration
 
-All via env (see [`.env.example`](.env.example)): `DB_*` (shared MySQL, dedicated `promptaudit` DB),
-`ADMIN_EMAIL` / `ADMIN_PASSWORD`, `JWT_SECRET`, `INGEST_TOKEN`.
+All via env (see [`.env.example`](.env.example)): `DB_*` (MySQL, dedicated `promptaudit` DB),
+`ADMIN_EMAIL` / `ADMIN_PASSWORD` (platform superadmin bootstrap), `JWT_SECRET`, `INGEST_TOKEN`
+(optional global/bootstrap token — each org normally gets its own from the Organizations page).
 
 ## Deployment
 
-host2 ECS + docker-compose (one container), image from ACR, built by Jenkins; public entry via the
-shared nginx at `audit.theprismatlas.com` — see [`ops/README.md`](ops/README.md).
+Build one image (`ops/build.sh`) and run it with `docker-compose.prod.yml` pointed at your MySQL,
+behind your own TLS reverse proxy (example nginx block in `ops/nginx-prompt-audit.site`).
+See [`ops/README.md`](ops/README.md).
 
-## Not in scope (deliberately)
+## Roadmap / not yet built
 
-SSO, fine-grained RBAC beyond the platform/org split, per-tenant theming. This is a demo:
-clear story, readable code, easy to extend. `ADMIN_EMAIL`/`ADMIN_PASSWORD` is the platform
-superadmin (bootstrap); org admins live in the DB and are created from the Organizations page.
+SSO/SAML, fine-grained RBAC beyond the platform/org split, tamper-evident (hash-chained) storage,
+and client-side reporting-coverage/gap detection. `ADMIN_EMAIL`/`ADMIN_PASSWORD` is the platform
+superadmin bootstrap; org admins live in the DB and are created from the Organizations page.

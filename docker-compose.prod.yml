@@ -1,21 +1,18 @@
-# host1/host2 production compose — pulls the prebuilt ACR image, builds nothing.
-# Deploy: the host has this repo checked out + a .env (see .env.example), then:
+# Production compose — pulls a prebuilt image, builds nothing. Points at YOUR existing MySQL.
+# (For a zero-dependency local run that bundles MySQL, use docker-compose.yml instead.)
+# Deploy: check out this repo + a .env (see .env.example) on the host, then:
 #   docker compose -f docker-compose.prod.yml pull && docker compose -f docker-compose.prod.yml up -d
 #
 # ONE container: the server serves BOTH the SPA (baked into the jar's static resources) and the API.
-# Public entry is the EXISTING shared unified-ingress nginx (the one already fronting prism & the
-# other services): add ops/nginx-prompt-audit.site to it, forwarding audit.theprismatlas.com →
-# 127.0.0.1:${APP_PORT}.
-#
-# Storage: REUSES the shared host1 MySQL (mysql.bedrock.internal) via a dedicated `promptaudit` DB.
+# Front it with your own TLS reverse proxy (example: ops/nginx-prompt-audit.site) → 127.0.0.1:${APP_PORT}.
 
 services:
   server:
-    image: ${ACR_REGISTRY}/${ACR_NAMESPACE}/promptaudit-server:${TAG}
+    image: ${IMAGE_REGISTRY}/${IMAGE_NAMESPACE}/promptaudit-server:${TAG}
     ports:
       - "127.0.0.1:${APP_PORT:-8091}:8080"   # bind localhost only; shared nginx proxies to it
     environment:
-      DB_HOST: ${DB_HOST:-mysql.bedrock.internal}
+      DB_HOST: ${DB_HOST:-mysql}
       DB_PORT: ${DB_PORT:-3306}
       DB_NAME: ${DB_NAME:-promptaudit}
       DB_USER: ${DB_USER}

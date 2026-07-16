@@ -6,7 +6,7 @@
 # hook (e.g. Claude Code UserPromptSubmit, a Qoder client hook, a git commit-msg hook, etc.).
 #
 # Config via env:
-#   PROMPT_AUDIT_URL     e.g. https://audit.theprismatlas.com   (base URL of the service)
+#   PROMPT_AUDIT_URL     e.g. https://audit.example.com   (base URL of the service)
 #   PROMPT_AUDIT_TOKEN   the INGEST_TOKEN
 #   PROMPT_AUDIT_EMAIL   optional; defaults to `git config user.email`
 set -euo pipefail

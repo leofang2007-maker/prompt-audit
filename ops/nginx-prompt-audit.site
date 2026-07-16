@@ -1,17 +1,15 @@
-# Server block to ADD to the shared unified-ingress nginx (host2, 192.168.0.99) — the same nginx
-# that already fronts prism (www.theprismatlas.com) and the other services. Do NOT run a dedicated
-# nginx for this project.
+# Example reverse-proxy server block. Terminate TLS here and forward your audit hostname to the
+# server container. Any reverse proxy works (nginx, Caddy, Traefik) — this is just a starting point.
 #
-# Install: copy to /etc/nginx/sites-available/prompt-audit, symlink into sites-enabled/,
-#          nginx -t && nginx -s reload.
+# Install (nginx): copy to /etc/nginx/sites-available/prompt-audit, symlink into sites-enabled/,
+#          nginx -t && nginx -s reload. Add TLS (e.g. certbot) for a public deployment.
 #
-# Chain:  audit.theprismatlas.com -> host2 nginx :80 -> promptaudit server container :${APP_PORT:-8091}
+# Chain:  audit.example.com (443/TLS) -> this proxy -> promptaudit server :${APP_PORT:-8091}
 #         (the single server container serves BOTH the SPA and /api)
-# DNS:    A record  audit.theprismatlas.com -> 8.219.193.199  (shared NAT EIP; same as www.theprismatlas.com)
 
 server {
     listen 80;
-    server_name audit.theprismatlas.com;
+    server_name audit.example.com;   # ← your audit hostname
 
     client_max_body_size 4m;   # prompts can be large
 

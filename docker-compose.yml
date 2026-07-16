@@ -1,23 +1,46 @@
-# Local full-stack build (dev). ONE container: builds the SPA + server image from source and runs
-# a single process that serves both the SPA and the API.
+# Local / self-hosted full stack — ONE command, zero external dependencies.
 #   docker compose up --build      →  open http://localhost:8091
 #
-# Prefer the faster mvn + vite loop for iteration (see README "Local development").
+# Bundles its own MySQL so a fresh clone runs immediately. For production reusing an existing
+# MySQL, use docker-compose.prod.yml instead (pulls a prebuilt image, points DB_* at your DB).
 
 services:
   server:
     build:
       context: .
-      dockerfile: server/Dockerfile   # multi-stage: builds web/ SPA then bakes it into the jar
+      dockerfile: server/Dockerfile   # multi-stage: builds the web/ SPA then bakes it into the jar
     ports:
       - "${APP_PORT:-8091}:8080"
     environment:
-      DB_HOST: ${DB_HOST:-mysql.bedrock.internal}
+      DB_HOST: ${DB_HOST:-mysql}
       DB_PORT: ${DB_PORT:-3306}
       DB_NAME: ${DB_NAME:-promptaudit}
       DB_USER: ${DB_USER:-promptaudit}
-      DB_PASSWORD: ${DB_PASSWORD:-}
+      DB_PASSWORD: ${DB_PASSWORD:-promptaudit}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@promptaudit.local}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme}
       JWT_SECRET: ${JWT_SECRET:-change-me-dev-secret}
       INGEST_TOKEN: ${INGEST_TOKEN:-dev-ingest-token}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-promptaudit}
+      MYSQL_USER: ${DB_USER:-promptaudit}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-promptaudit}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpw}
+    volumes:
+      - promptaudit-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASSWORD:-rootpw}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  promptaudit-db:

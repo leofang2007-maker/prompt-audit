@@ -13,7 +13,7 @@ import java.util.Map;
 
 /**
  * Minimal HS256 JWT (no external dependency, Java 8). Signs/validates the admin session token.
- * Claims: sub(email), role, iat, exp. Same implementation as PrismAtlas control-plane.
+ * Claims: sub(email), role, iat, exp.
  */
 @Component
 public class JwtUtil {

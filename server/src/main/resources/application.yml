@@ -5,9 +5,9 @@ spring:
   application:
     name: prompt-audit-server
   datasource:
-    # Reuses the shared host1 MySQL (mysql.bedrock.internal) via a DEDICATED database `promptaudit`
-    # so audit data never mixes with RWS/middle-end schemas. All values overridable by env.
-    url: jdbc:mysql://${DB_HOST:mysql.bedrock.internal}:${DB_PORT:3306}/${DB_NAME:promptaudit}?useSSL=false&serverTimezone=UTC&characterEncoding=utf8&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+    # Point DB_* at your MySQL; a dedicated `promptaudit` database keeps audit data isolated.
+    # All values overridable by env. (createDatabaseIfNotExist=true so the DB is created on first boot.)
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:promptaudit}?useSSL=false&serverTimezone=UTC&characterEncoding=utf8&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
     username: ${DB_USER:promptaudit}
     password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
