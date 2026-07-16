@@ -185,16 +185,15 @@ See [`ops/README.md`](ops/README.md).
 Prioritized from real needs security/compliance teams and developers voice about AI coding tools
 (see the cited [Reddit research](docs/research/reddit-2026-07.md) behind these):
 
-- **Tamper-evident storage** — append-only, hash-chained records so the audit trail can't be
-  silently altered or "broken."
-- **Secret / PII redaction at capture** — detect & mask `.env` / keys / PII *before* a prompt is
-  stored, so you keep evidence without hoarding the secrets themselves.
-- **Anti-surveillance guardrails** — role-scoped access, admin views that require a reason and are
-  themselves audited, no keystroke / productivity scoring. (Trust is the adoption wedge, not a nicety.)
-- **Reporting-coverage / gap detection** — surface machines or users that *should* be reporting but went silent.
-- **More client adapters** — Claude Code, Cursor, Copilot, Codex (the Qoder plugin ships today).
-- **Audit-ready kit** — control-framework mappings (SOC 2 / ISO 27001) + sample evidence export.
-- **SSO/SAML + finer RBAC.**
+Each item is a tracked issue — 👍 or comment to help prioritize:
+
+- **[Tamper-evident storage](https://github.com/leofang2007-maker/prompt-audit/issues/1)** — append-only, hash-chained records so the audit trail can't be silently altered or "broken."
+- **[Secret / PII redaction at capture](https://github.com/leofang2007-maker/prompt-audit/issues/2)** — detect & mask `.env` / keys / PII *before* a prompt is stored, so you keep evidence without hoarding the secrets.
+- **[Anti-surveillance guardrails](https://github.com/leofang2007-maker/prompt-audit/issues/3)** — role-scoped access, reason-logged admin views, no productivity scoring. (Trust is the adoption wedge, not a nicety.)
+- **[Reporting-coverage / gap detection](https://github.com/leofang2007-maker/prompt-audit/issues/4)** — surface machines/users that *should* be reporting but went silent.
+- **[More client adapters](https://github.com/leofang2007-maker/prompt-audit/issues/5)** — Claude Code, Cursor, Copilot, Codex (the Qoder plugin ships today).
+- **[Audit-ready kit](https://github.com/leofang2007-maker/prompt-audit/issues/6)** — control-framework mappings (SOC 2 / ISO 27001) + sample evidence export.
+- **[SSO/SAML + finer RBAC](https://github.com/leofang2007-maker/prompt-audit/issues/7)**.
 
 Want one of these sooner, or something else? See **Feedback & feature requests** below.
 > `ADMIN_EMAIL`/`ADMIN_PASSWORD` is the platform superadmin bootstrap; org admins live in the DB
