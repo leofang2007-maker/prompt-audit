@@ -26,6 +26,14 @@ cd server && mvn test
 cd web && npm install && npm run build
 ```
 
+## Specs (for non-trivial changes)
+
+This project is spec-driven: data-model/API changes, anything with security/privacy semantics, or
+anything with more than one reasonable approach get a short **design spec** reviewed *before* the
+implementation. Write it from [`docs/specs/TEMPLATE.md`](docs/specs/TEMPLATE.md) and open it as a
+PR — see [`docs/specs/README.md`](docs/specs/README.md) for the flow. Small changes (docs, bug
+fixes, small additive tweaks) skip this and go straight to a PR.
+
 ## Guidelines
 
 - Keep PRs focused — one logical change per PR.
