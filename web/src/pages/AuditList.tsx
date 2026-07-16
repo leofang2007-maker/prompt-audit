@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { exportUrl, Filters, listPrompts, Summary } from "../api";
 import { Detail } from "./Detail";
+import { IntegrityBanner } from "./IntegrityBanner";
 
 const PAGE_SIZE = 20;
 const EMPTY: Filters = {};
@@ -42,6 +43,7 @@ export function AuditList() {
 
   return (
     <div className="audit">
+      <IntegrityBanner />
       <div className="filters">
         <div className="filter-grid">
           <label className="field"><span>From</span>

@@ -84,6 +84,27 @@ export function exportUrl(f: Filters, format: "csv" | "json"): string {
   return `/api/v1/prompts/export?${query(f, { format, token })}`;
 }
 
+// ---- tamper-evident chain integrity ----
+
+export interface IntegrityChain {
+  chain: string;
+  ok: boolean;
+  checked: number;
+  unchained: number;
+  head_hash: string;
+  first_broken_id: string | null;
+}
+export interface Integrity {
+  ok: boolean;
+  chains: IntegrityChain[];
+}
+
+export async function getIntegrity(): Promise<Integrity> {
+  const r = await authedFetch("/api/v1/integrity");
+  if (!r.ok) throw new Error(`integrity check failed: ${r.status}`);
+  return r.json();
+}
+
 // ---- multi-tenant management ----
 
 export interface TenantRow {
