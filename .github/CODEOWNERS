@@ -1,0 +1,3 @@
+# Every change requires review from the maintainer.
+# (With branch protection "Require review from Code Owners", this auto-requests @leofang2007-maker on every PR.)
+* @leofang2007-maker
