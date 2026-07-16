@@ -90,9 +90,19 @@ public class PromptRecord {
     @Column(columnDefinition = "LONGTEXT")
     private String prompt;
 
-    /** Character length of the prompt — cheap to index/sort and safe to log (the prompt itself is not). */
+    /** Character length of the prompt — cheap to index/sort and safe to log (the prompt itself is not).
+     *  This is the length of the STORED (redacted) prompt, per spec 0002. */
     @Column(name = "prompt_length")
     private int promptLength;
+
+    // ---- secret redaction at capture (spec 0002) ----
+    /** How many secrets were masked out of this prompt before it was stored (0 = none / disabled). */
+    @Column(name = "redaction_count")
+    private int redactionCount;
+
+    /** Distinct secret types masked, sorted & comma-joined (e.g. "aws_key,jwt"); empty when none. */
+    @Column(name = "redacted_types", length = 256)
+    private String redactedTypes;
 
     // ---- tamper-evident chain (spec 0001); nullable until backfilled ----
     @Column(name = "record_hash", length = 64)
@@ -142,6 +152,10 @@ public class PromptRecord {
     public void setPrompt(String prompt) { this.prompt = prompt; }
     public int getPromptLength() { return promptLength; }
     public void setPromptLength(int promptLength) { this.promptLength = promptLength; }
+    public int getRedactionCount() { return redactionCount; }
+    public void setRedactionCount(int redactionCount) { this.redactionCount = redactionCount; }
+    public String getRedactedTypes() { return redactedTypes; }
+    public void setRedactedTypes(String redactedTypes) { this.redactedTypes = redactedTypes; }
     public String getRecordHash() { return recordHash; }
     public void setRecordHash(String recordHash) { this.recordHash = recordHash; }
     public String getPrevHash() { return prevHash; }

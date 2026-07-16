@@ -53,6 +53,13 @@ export function Detail({ id, onClose }: { id: string; onClose: () => void }) {
               <Meta label="Transcript" value={rec.transcript_path} mono />
               <Meta label="Prompt length" value={String(rec.prompt_length)} />
             </div>
+            {rec.redaction_count > 0 && (
+              <div className="redaction-notice">
+                🛡 <strong>{rec.redaction_count} secret{rec.redaction_count === 1 ? "" : "s"} masked at capture</strong>
+                {rec.redacted_types ? <> · {rec.redacted_types}</> : null}. The value{rec.redaction_count === 1 ? " was" : "s were"} replaced
+                with <code>[REDACTED:type]</code> before storage — the audit log never held {rec.redaction_count === 1 ? "it" : "them"}.
+              </div>
+            )}
             <div className="prompt-head">
               <span>Prompt</span>
               <button className="btn ghost small" onClick={copyPrompt}>{copied ? "Copied ✓" : "Copy"}</button>

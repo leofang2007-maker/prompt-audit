@@ -129,6 +129,8 @@ public class AuditController {
         m.put("branch", r.getBranch());
         m.put("hostname", r.getHostname());
         m.put("prompt_length", r.getPromptLength());
+        m.put("redaction_count", r.getRedactionCount());
+        m.put("redacted_types", r.getRedactedTypes());
         m.put("prompt_preview", PromptService.preview(r.getPrompt()));
         return m;
     }
