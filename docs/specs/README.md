@@ -43,4 +43,4 @@ A spec has a **Status** in its header, updated over its life:
 | # | Title | Status | Issue |
 |---|-------|--------|-------|
 | [0001](0001-tamper-evident-storage.md) | Tamper-evident audit storage | Implemented | [#1](https://github.com/leofang2007-maker/prompt-audit/issues/1) |
-| [0002](0002-secret-pii-redaction.md) | Secret / PII redaction at capture | Draft | [#2](https://github.com/leofang2007-maker/prompt-audit/issues/2) |
+| [0002](0002-secret-pii-redaction.md) | Secret / PII redaction at capture | Accepted | [#2](https://github.com/leofang2007-maker/prompt-audit/issues/2) |

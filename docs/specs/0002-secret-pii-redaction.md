@@ -1,6 +1,6 @@
 # 0002 — Secret / PII redaction at capture
 
-- **Status:** Draft
+- **Status:** Accepted
 - **Issue:** [#2](https://github.com/leofang2007-maker/prompt-audit/issues/2)
 - **Author:** —
 - **Created:** 2026-07-16
@@ -105,14 +105,20 @@ deterministic for the chain to verify.
 Hibernate adds the two columns. Redaction applies to **new** ingests only (existing rows are
 unchanged — they were captured before the feature). Default mode is an open question (below).
 
-## Open questions
+## Decisions (resolved 2026-07-16)
 
-1. **Layer:** v1 = server-side-at-ingest, client-side redaction as a follow-up? *(leaning yes.)*
-2. **Default mode:** `mask` (secure-by-default, but false positives can mangle a prompt) or `off`
-   (opt-in, safer for correctness, ship a good ruleset and let operators enable)? *This is the main call.*
-3. **mask vs hash** as the primary mode we ship first? *(leaning mask; hash later for repeat-detection.)*
-4. **prompt_length** = length of the redacted (stored) prompt, or the original? *(leaning stored/redacted.)*
-5. **Ruleset**: fixed built-in list, or operator-extensible via config (regex list)? *(leaning built-in v1 + config-extensible.)*
-6. **PII in v1** (emails/phones), or secrets-only first? *(leaning secrets-only; PII is opt-in / later.)*
-7. **Warn-the-developer** path (tell the dev "you just sent a secret") — out of scope for #2 (that's
-   prevention/blocking)? *(leaning out; note as related follow-up.)*
+1. **Layer: server-side at ingest** for v1; client-side (before POST) redaction is a follow-up.
+2. **Default mode: `mask` (secure-by-default)** — but with a **high-confidence, low-false-positive
+   ruleset only.** No generic high-entropy heuristic in v1 (that's the false-positive risk); the
+   built-in rules are well-formed, prefixed secret formats + explicit credential assignments. So a
+   normal prompt is never mangled by default.
+3. **Ship `mask` first** (`[REDACTED:type]`); `hash` mode is a later follow-up.
+4. **`prompt_length` = the redacted (stored) length**; `redaction_count` signals something was removed.
+5. **Built-in ruleset + operator-extensible** via config (`app.redaction.extra`, `type=regex` entries).
+6. **Secrets-only in v1.** PII (emails/phones) is opt-in / later — high FP and `user_email` is
+   legitimately captured elsewhere.
+7. **Warn-the-developer is out of scope** (that's prevention/blocking; relates to #3 + a future
+   "prevent" mode).
+
+**Follow-ups (not in this spec):** client-side redaction; `hash` mode; PII detectors; a blocking
+"prevent" mode that stops the secret reaching the vendor.
