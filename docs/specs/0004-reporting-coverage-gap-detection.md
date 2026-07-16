@@ -1,6 +1,6 @@
 # 0004 — Reporting-coverage / gap detection
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Issue:** [#4](https://github.com/leofang2007-maker/prompt-audit/issues/4)
 - **Author:** —
 - **Created:** 2026-07-16
