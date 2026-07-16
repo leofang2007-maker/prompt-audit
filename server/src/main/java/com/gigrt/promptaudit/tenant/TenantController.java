@@ -71,13 +71,23 @@ public class TenantController {
                                                            @RequestBody(required = false) Map<String, Object> body) {
         String email = body != null ? str(body.get("email")) : null;
         String password = body != null ? str(body.get("password")) : null;
+        String role = body != null ? str(body.get("role")) : null;   // spec 0003; default viewer
         try {
-            return ResponseEntity.status(HttpStatus.CREATED).body(adminDto(service.createAdmin(id, email, password)));
+            return ResponseEntity.status(HttpStatus.CREATED).body(adminDto(service.createAdmin(id, email, password, role)));
         } catch (TenantService.NotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (TenantService.ConflictException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Collections.singletonMap("error", e.getMessage()));
         }
+    }
+
+    /** Change an admin's capability role (viewer/auditor) — spec 0003. Platform-only (route guard). */
+    @PostMapping("/{id}/admins/{adminId}/role")
+    public ResponseEntity<Map<String, Object>> setAdminRole(@PathVariable String id, @PathVariable String adminId,
+                                                            @RequestBody(required = false) Map<String, Object> body) {
+        String role = body != null ? str(body.get("role")) : null;
+        AdminUser u = service.setAdminRole(id, adminId, role);
+        return u == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(adminDto(u));
     }
 
     @DeleteMapping("/{id}/admins/{adminId}")
@@ -103,6 +113,7 @@ public class TenantController {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", u.getId());
         m.put("email", u.getEmail());
+        m.put("role", TenantService.capOf(u));   // effective capability (legacy NULL → auditor)
         m.put("created_at", u.getCreatedAt() == null ? null : u.getCreatedAt().toString());
         return m;   // never the password hash
     }

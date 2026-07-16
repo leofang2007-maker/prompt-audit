@@ -47,3 +47,8 @@ app:
   redaction:
     mode: ${REDACTION_MODE:mask}
     extra: ${REDACTION_EXTRA:}
+  # Anti-surveillance guardrails (spec 0003). When true, revealing a full prompt (detail view) or
+  # exporting requires a non-empty `reason`, recorded in the tamper-evident admin access log. Set false
+  # to drop the reason requirement (access is still logged).
+  access:
+    require-reason: ${ACCESS_REQUIRE_REASON:true}

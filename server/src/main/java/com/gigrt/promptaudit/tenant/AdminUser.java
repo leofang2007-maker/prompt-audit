@@ -28,6 +28,12 @@ public class AdminUser {
     @Column(name = "tenant_id", length = 48, nullable = false)
     private String tenantId;
 
+    /** Intra-tenant capability role (spec 0003): "viewer" (metadata + redacted previews) or
+     *  "auditor" (may reveal full prompt text / export, always access-logged). NULL on legacy rows —
+     *  read as "auditor" to preserve pre-0003 behavior; new admins default to "viewer". */
+    @Column(name = "role", length = 16)
+    private String role;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -41,6 +47,8 @@ public class AdminUser {
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public String getTenantId() { return tenantId; }
     public void setTenantId(String tenantId) { this.tenantId = tenantId; }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

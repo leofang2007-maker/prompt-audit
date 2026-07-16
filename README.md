@@ -82,12 +82,15 @@ so a machine can't forge its way into another org's data, and every admin read i
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | `POST` | `/api/v1/prompts` | ingest token | Report a prompt. Body (v1.0.2): `{event_id?, timestamp, session_id, user_email, user_name, user_uid, org_id, org_name, repo, branch, cwd, transcript_path, hostname, prompt}`. Only `prompt` required (else 400); every other field is optional and stored as-is (fail-open, missing ⇒ null). → `200 {"ok":true,"id":"pr_…"}`. **Idempotent on `event_id`**: a repeat (IDE double-fire / drain retry) returns the original id with `"deduplicated":true` — no new row. Logs prompt **length** only — never the token or text. |
-| `POST` | `/api/v1/auth/login` | — | Login (platform superadmin from env, or an org admin from DB) → `{token, profile{role,tenant,org_name}}`. |
+| `POST` | `/api/v1/auth/login` | — | Login (platform superadmin from env, or an org admin from DB) → `{token, profile{role,cap,tenant,org_name}}` (`cap` = `viewer`\|`auditor`). |
 | `POST` | `/api/v1/auth/logout` | admin | Stateless acknowledge (client drops token). |
 | `GET` | `/api/v1/prompts` | admin | Filtered, paginated list — **isolated to the caller's tenant** (platform sees all). Params: `from,to,user_email,org_id,user_uid,repo,session_id,keyword,page,page_size`. |
-| `GET` | `/api/v1/prompts/{id}` | admin | Full record (cross-tenant id ⇒ 404). |
-| `GET` | `/api/v1/prompts/export?format=csv\|json` | admin | Export the current (tenant-scoped) filter set. |
+| `GET` | `/api/v1/prompts/{id}?reason=…` | admin | Full record (cross-tenant id ⇒ 404). A **viewer** gets metadata + redacted preview only (`prompt_hidden`); an **auditor**/platform admin must supply `reason` and the full-text reveal is access-logged (spec [0003](docs/specs/0003-anti-surveillance-guardrails.md)). |
+| `GET` | `/api/v1/prompts/export?format=csv\|json&reason=…` | auditor | Export the current (tenant-scoped) filter set. Viewers → 403; `reason` required and logged. |
 | `GET` | `/api/v1/integrity` | admin | Verify the tamper-evident hash chain (spec [0001](docs/specs/0001-tamper-evident-storage.md)); reports `ok` + the first broken record, if any. Tenant-scoped. |
+| `GET` | `/api/v1/access-log` · `/integrity` | admin | The "who watched the watchers" log (spec [0003](docs/specs/0003-anti-surveillance-guardrails.md)): every full-text view/export, with the reason given — itself hash-chained. Tenant-scoped. |
+| `GET` | `/api/v1/transparency` | **public** | Disclosure of what's captured, that secrets are redacted, that admin access is logged, and that no productivity scoring is computed — point developers at it. |
+| `POST` | `/api/v1/tenants/{id}/admins/{aid}/role` | platform | Set an org admin's capability role (`viewer`/`auditor`). |
 | `GET`·`POST` | `/api/v1/tenants` · `/{id}/rotate-token` · `DELETE /{id}` | platform | List/create orgs, rotate/revoke their ingest token. |
 | `GET`·`POST` | `/api/v1/tenants/{id}/admins` · `DELETE /{id}/admins/{aid}` | platform | Manage an org's admin logins. |
 | `GET`·`POST` | `/api/v1/my/tenant` · `/tenant/rotate-token` | org admin | View / rotate **your own** org's ingest token. |
@@ -181,6 +184,22 @@ Build one image (`ops/build.sh`) and run it with `docker-compose.prod.yml` point
 behind your own TLS reverse proxy (example nginx block in `ops/nginx-prompt-audit.site`).
 See [`ops/README.md`](ops/README.md).
 
+## Principles — enable, don't surveil
+
+Prompt auditing is bought by security/compliance but can be killed by developer revolt. So trust is a
+structural property here, not a promise:
+
+- **No productivity scoring.** No per-developer score, ranking, or performance metric is computed or
+  exposed. Not now, not as a hidden endpoint.
+- **Least privilege.** Admins are `viewer` (metadata + redacted previews) or `auditor` (full text).
+  New admins default to `viewer`.
+- **Every reveal is accountable.** Viewing full prompt text or exporting requires a reason and is
+  recorded in a hash-chained [access log](docs/specs/0003-anti-surveillance-guardrails.md) — including
+  views by the platform superadmin. No silent super-user bypass.
+- **Secrets aren't hoarded.** Well-formed secrets are [redacted at capture](docs/specs/0002-secret-pii-redaction.md).
+- **Transparent to developers.** A public `/api/v1/transparency` endpoint discloses exactly what's
+  captured and the limits above.
+
 ## Roadmap
 
 Prioritized from real needs security/compliance teams and developers voice about AI coding tools
@@ -190,7 +209,7 @@ Each item is a tracked issue — 👍 or comment to help prioritize:
 
 - ✅ **[Tamper-evident storage](https://github.com/leofang2007-maker/prompt-audit/issues/1)** *(shipped)* — append-only, hash-chained records; verify via `GET /api/v1/integrity`. Design: [spec 0001](docs/specs/0001-tamper-evident-storage.md).
 - ✅ **[Secret / PII redaction at capture](https://github.com/leofang2007-maker/prompt-audit/issues/2)** *(shipped)* — masks well-formed secrets (keys / tokens / private keys / `password=…`) *before* a prompt is stored or hashed, so you keep evidence (count + types) without hoarding the secret. `REDACTION_MODE=mask` by default. Design: [spec 0002](docs/specs/0002-secret-pii-redaction.md).
-- **[Anti-surveillance guardrails](https://github.com/leofang2007-maker/prompt-audit/issues/3)** — role-scoped access, reason-logged admin views, no productivity scoring. (Trust is the adoption wedge, not a nicety.)
+- ✅ **[Anti-surveillance guardrails](https://github.com/leofang2007-maker/prompt-audit/issues/3)** *(shipped)* — `viewer`/`auditor` roles, reason-required + hash-chained access log (`/api/v1/access-log`), a public `/api/v1/transparency` disclosure, and **no productivity scoring**. Design: [spec 0003](docs/specs/0003-anti-surveillance-guardrails.md).
 - **[Reporting-coverage / gap detection](https://github.com/leofang2007-maker/prompt-audit/issues/4)** — surface machines/users that *should* be reporting but went silent.
 - **[More client adapters](https://github.com/leofang2007-maker/prompt-audit/issues/5)** — Claude Code, Cursor, Copilot, Codex (the Qoder plugin ships today).
 - **[Audit-ready kit](https://github.com/leofang2007-maker/prompt-audit/issues/6)** — control-framework mappings (SOC 2 / ISO 27001) + sample evidence export.

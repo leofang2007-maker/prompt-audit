@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import { Detail as DetailRecord, getPrompt } from "../api";
 
-/** Modal showing a full audit record + the complete prompt text. */
-export function Detail({ id, onClose }: { id: string; onClose: () => void }) {
+/** Modal showing a full audit record + the complete prompt text. `reason` (when the caller is an
+ *  auditor/platform admin) is sent so the full-text reveal is access-logged (spec 0003). */
+export function Detail({ id, reason, onClose }: { id: string; reason?: string; onClose: () => void }) {
   const [rec, setRec] = useState<DetailRecord | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    getPrompt(id).then(setRec).catch((e) => setErr((e as Error).message));
-  }, [id]);
+    getPrompt(id, reason).then(setRec).catch((e) => setErr((e as Error).message));
+  }, [id, reason]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -62,9 +63,19 @@ export function Detail({ id, onClose }: { id: string; onClose: () => void }) {
             )}
             <div className="prompt-head">
               <span>Prompt</span>
-              <button className="btn ghost small" onClick={copyPrompt}>{copied ? "Copied ✓" : "Copy"}</button>
+              {!rec.prompt_hidden && (
+                <button className="btn ghost small" onClick={copyPrompt}>{copied ? "Copied ✓" : "Copy"}</button>
+              )}
             </div>
-            <pre className="prompt-body">{rec.prompt}</pre>
+            {rec.prompt_hidden ? (
+              <div className="prompt-hidden">
+                🔒 Full prompt text is withheld for your role (<strong>viewer</strong>). Only an
+                <strong> auditor</strong> can reveal it — and that reveal is recorded in the access log.
+                {rec.prompt_preview ? <><br /><span className="muted">Redacted preview:</span> {rec.prompt_preview}</> : null}
+              </div>
+            ) : (
+              <pre className="prompt-body">{rec.prompt}</pre>
+            )}
           </>
         )}
       </div>

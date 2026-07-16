@@ -36,6 +36,7 @@ export interface Detail extends Summary {
   cwd: string | null;
   transcript_path: string | null;
   prompt: string | null;
+  prompt_hidden?: boolean;   // spec 0003 — true when withheld from a viewer-role admin
 }
 
 export interface ListResult {
@@ -74,16 +75,21 @@ export async function listPrompts(f: Filters, page: number, pageSize: number): P
   return r.json();
 }
 
-export async function getPrompt(id: string): Promise<Detail> {
-  const r = await authedFetch(`/api/v1/prompts/${encodeURIComponent(id)}`);
+/** Full record. `reason` is required to reveal full text as an auditor/platform admin (spec 0003);
+ *  a viewer omits it and receives a masked record (prompt_hidden). 400 ⇒ reason required. */
+export async function getPrompt(id: string, reason?: string): Promise<Detail> {
+  const extra = reason ? `?reason=${encodeURIComponent(reason)}` : "";
+  const r = await authedFetch(`/api/v1/prompts/${encodeURIComponent(id)}${extra}`);
+  if (r.status === 400) throw new Error("reason_required");
   if (!r.ok) throw new Error(`detail failed: ${r.status}`);
   return r.json();
 }
 
-/** Export URL carries the token in the query so a plain browser navigation (download) is authorized. */
-export function exportUrl(f: Filters, format: "csv" | "json"): string {
+/** Export URL carries the token in the query so a plain browser navigation (download) is authorized.
+ *  `reason` is recorded in the access log (spec 0003). */
+export function exportUrl(f: Filters, format: "csv" | "json", reason: string): string {
   const token = getToken() ?? "";
-  return `/api/v1/prompts/export?${query(f, { format, token })}`;
+  return `/api/v1/prompts/export?${query(f, { format, token, reason })}`;
 }
 
 // ---- tamper-evident chain integrity ----
@@ -107,6 +113,56 @@ export async function getIntegrity(): Promise<Integrity> {
   return r.json();
 }
 
+// ---- admin access log (spec 0003) ----
+
+export interface AccessEntry {
+  id: string;
+  created_at: string | null;
+  actor_email: string | null;
+  actor_role: string | null;   // "platform" | "auditor"
+  action: string;              // "view_detail" | "export"
+  target_record_id: string | null;
+  query_json: string | null;
+  reason: string | null;
+  ip: string | null;
+  tenant_org_id: string | null;
+}
+export interface AccessLogResult { items: AccessEntry[]; total: number; page: number; page_size: number; }
+
+export async function listAccessLog(page: number, pageSize: number): Promise<AccessLogResult> {
+  const r = await authedFetch(`/api/v1/access-log?page=${page}&page_size=${pageSize}`);
+  if (!r.ok) throw new Error(`access log failed: ${r.status}`);
+  return r.json();
+}
+export async function getAccessIntegrity(): Promise<Integrity> {
+  const r = await authedFetch("/api/v1/access-log/integrity");
+  if (!r.ok) throw new Error(`access integrity failed: ${r.status}`);
+  return r.json();
+}
+
+// ---- transparency disclosure (spec 0003, public) ----
+
+export interface Transparency {
+  captured_fields: string[];
+  redaction: { enabled: boolean; mode: string; note: string };
+  admin_access: {
+    full_text_view_logged: boolean;
+    export_logged: boolean;
+    reason_required: boolean;
+    tamper_evident: boolean;
+    note: string;
+  };
+  retention: string;
+  productivity_scoring: string;
+  roles: string[];
+}
+
+export async function getTransparency(): Promise<Transparency> {
+  const r = await fetch("/api/v1/transparency");   // public — no auth
+  if (!r.ok) throw new Error(`transparency failed: ${r.status}`);
+  return r.json();
+}
+
 // ---- multi-tenant management ----
 
 export interface TenantRow {
@@ -120,6 +176,7 @@ export interface TenantRow {
 export interface OrgAdmin {
   id: string;
   email: string;
+  role: "viewer" | "auditor";   // spec 0003
   created_at: string | null;
 }
 
@@ -147,10 +204,18 @@ export async function deleteTenant(id: string): Promise<void> {
 export async function listAdmins(tenantId: string): Promise<OrgAdmin[]> {
   return (await jsonOrThrow(await authedFetch(`/api/v1/tenants/${tenantId}/admins`))).items;
 }
-export async function createAdmin(tenantId: string, email: string, password: string): Promise<OrgAdmin> {
+export async function createAdmin(tenantId: string, email: string, password: string,
+                                  role: "viewer" | "auditor"): Promise<OrgAdmin> {
   return jsonOrThrow(await authedFetch(`/api/v1/tenants/${tenantId}/admins`, {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, role }),
+  }));
+}
+export async function setAdminRole(tenantId: string, adminId: string,
+                                   role: "viewer" | "auditor"): Promise<OrgAdmin> {
+  return jsonOrThrow(await authedFetch(`/api/v1/tenants/${tenantId}/admins/${adminId}/role`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ role }),
   }));
 }
 export async function deleteAdmin(tenantId: string, adminId: string): Promise<void> {

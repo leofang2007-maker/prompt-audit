@@ -79,13 +79,13 @@ class PromptAuditIntegrationTest {
                 .andExpect(jsonPath("$.items[0].user_email").value("dev@acme.com"))
                 .andExpect(jsonPath("$.items[0].prompt_preview").value("refactor the auth module"));
 
-        // 4) admin reads full detail (includes prompt text)
-        mvc.perform(get("/api/v1/prompts/" + id).header("Authorization", auth))
+        // 4) admin reads full detail (includes prompt text) — full-text view needs a reason (spec 0003)
+        mvc.perform(get("/api/v1/prompts/" + id + "?reason=incident-check").header("Authorization", auth))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.prompt").value("refactor the auth module"));
 
-        // 5) admin exports CSV for the current filter
-        MvcResult csv = mvc.perform(get("/api/v1/prompts/export?format=csv&keyword=refactor")
+        // 5) admin exports CSV for the current filter (reason required)
+        MvcResult csv = mvc.perform(get("/api/v1/prompts/export?format=csv&keyword=refactor&reason=quarterly-audit")
                 .header("Authorization", auth))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Disposition",
@@ -164,8 +164,8 @@ class PromptAuditIntegrationTest {
 
         String token = adminToken();
 
-        // Detail persists all 5 new columns (not silently dropped).
-        mvc.perform(get("/api/v1/prompts/" + id).header("Authorization", "Bearer " + token))
+        // Detail persists all 5 new columns (not silently dropped). Platform view needs a reason (0003).
+        mvc.perform(get("/api/v1/prompts/" + id + "?reason=field-check").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.user_name").value("larry.fs"))
                 .andExpect(jsonPath("$.user_uid").value("019f25ea-c7c9-72dc-9ff1-e157bf1aff20"))
@@ -356,7 +356,148 @@ class PromptAuditIntegrationTest {
         org.junit.jupiter.api.Assertions.assertEquals(0, rec.getRedactionCount());
     }
 
+    // ---- anti-surveillance guardrails (spec 0003) ----
+
+    @Test
+    void viewer_cannot_see_full_text_auditor_can_with_reason() throws Exception {
+        String platform = "Bearer " + adminToken();
+        String tok = createTenant(platform, "Roles");
+        String tid = tenantIdByName(platform, "Roles");
+        ingest(tok, "role test prompt", "role-sess");
+        String recId = promptRepo.findByTenantOrgIdOrderByChainSeqAsc(tid).get(0).getId();
+
+        // viewer: full text withheld, no reason needed (nothing is revealed → not logged)
+        String viewer = "Bearer " + createAdminWithRole(platform, tid, "viewer@roles.example", "vpw-12345", "viewer");
+        mvc.perform(get("/api/v1/prompts/" + recId).header("Authorization", viewer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.prompt_hidden").value(true))
+                .andExpect(jsonPath("$.prompt").value(org.hamcrest.Matchers.nullValue()));
+
+        String auditor = "Bearer " + createAdminWithRole(platform, tid, "auditor@roles.example", "apw-12345", "auditor");
+        // auditor WITHOUT reason → rejected
+        mvc.perform(get("/api/v1/prompts/" + recId).header("Authorization", auditor))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("reason_required"));
+        // auditor WITH reason → full text
+        mvc.perform(get("/api/v1/prompts/" + recId + "?reason=security-review").header("Authorization", auditor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.prompt_hidden").value(false))
+                .andExpect(jsonPath("$.prompt").value("role test prompt"));
+    }
+
+    @Test
+    void export_forbidden_for_viewer_and_reason_required_for_auditor() throws Exception {
+        String platform = "Bearer " + adminToken();
+        String tok = createTenant(platform, "Roles2");
+        String tid = tenantIdByName(platform, "Roles2");
+        ingest(tok, "exportable", "exp-sess");
+
+        String viewer = "Bearer " + createAdminWithRole(platform, tid, "viewer@roles2.example", "vpw-12345", "viewer");
+        mvc.perform(get("/api/v1/prompts/export?format=csv&reason=x").header("Authorization", viewer))
+                .andExpect(status().isForbidden());
+
+        String auditor = "Bearer " + createAdminWithRole(platform, tid, "auditor@roles2.example", "apw-12345", "auditor");
+        mvc.perform(get("/api/v1/prompts/export?format=csv").header("Authorization", auditor))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/v1/prompts/export?format=csv&reason=quarterly").header("Authorization", auditor))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void full_text_views_are_logged_and_the_access_chain_verifies() throws Exception {
+        String platform = "Bearer " + adminToken();
+        String tok = createTenant(platform, "AclChain");
+        String tid = tenantIdByName(platform, "AclChain");
+        ingest(tok, "watched prompt", "acl-sess");
+        String recId = promptRepo.findByTenantOrgIdOrderByChainSeqAsc(tid).get(0).getId();
+
+        String auditor = "Bearer " + createAdminWithRole(platform, tid, "auditor@acl.example", "apw-12345", "auditor");
+        mvc.perform(get("/api/v1/prompts/" + recId + "?reason=looking-into-incident-42").header("Authorization", auditor))
+                .andExpect(status().isOk());
+
+        // the view is in the access log, scoped to the org whose data was viewed
+        mvc.perform(get("/api/v1/access-log").header("Authorization", auditor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].action").value("view_detail"))
+                .andExpect(jsonPath("$.items[0].target_record_id").value(recId))
+                .andExpect(jsonPath("$.items[0].reason").value("looking-into-incident-42"))
+                .andExpect(jsonPath("$.items[0].actor_role").value("auditor"));
+
+        // and the access log itself is tamper-evident
+        mvc.perform(get("/api/v1/access-log/integrity").header("Authorization", auditor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true));
+    }
+
+    @Test
+    void platform_admin_views_are_logged_no_silent_bypass() throws Exception {
+        String platform = "Bearer " + adminToken();
+        String tok = createTenant(platform, "PlatView");
+        String tid = tenantIdByName(platform, "PlatView");
+        ingest(tok, "platform will peek", "pv-sess");
+        String recId = promptRepo.findByTenantOrgIdOrderByChainSeqAsc(tid).get(0).getId();
+
+        // the platform superadmin reveals full text — must supply a reason and IS logged
+        mvc.perform(get("/api/v1/prompts/" + recId + "?reason=platform-spot-check").header("Authorization", platform))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.prompt").value("platform will peek"));
+
+        // the org's own auditor sees that the platform looked at their data
+        String auditor = "Bearer " + createAdminWithRole(platform, tid, "auditor@pv.example", "apw-12345", "auditor");
+        mvc.perform(get("/api/v1/access-log").header("Authorization", auditor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.items[0].actor_role").value("platform"));
+    }
+
+    @Test
+    void transparency_endpoint_is_public() throws Exception {
+        mvc.perform(get("/api/v1/transparency"))          // NO auth header
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.productivity_scoring").exists())
+                .andExpect(jsonPath("$.admin_access.reason_required").value(true))
+                .andExpect(jsonPath("$.admin_access.full_text_view_logged").value(true))
+                .andExpect(jsonPath("$.redaction.mode").value("mask"));
+    }
+
+    @Test
+    void admin_role_can_be_assigned_and_changed() throws Exception {
+        String platform = "Bearer " + adminToken();
+        createTenant(platform, "RoleMgmt");
+        String tid = tenantIdByName(platform, "RoleMgmt");
+
+        // created as auditor…
+        MvcResult created = mvc.perform(post("/api/v1/tenants/" + tid + "/admins").header("Authorization", platform)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"a@rolemgmt.example\",\"password\":\"pw-123456\",\"role\":\"auditor\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.role").value("auditor"))
+                .andReturn();
+        String aid = json.readTree(created.getResponse().getContentAsString()).get("id").asText();
+
+        // …then downgraded to viewer
+        mvc.perform(post("/api/v1/tenants/" + tid + "/admins/" + aid + "/role").header("Authorization", platform)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"viewer\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("viewer"));
+
+        // an org admin (viewer) cannot reach platform role management (403)
+        String viewer = "Bearer " + login("a@rolemgmt.example", "pw-123456");
+        mvc.perform(post("/api/v1/tenants/" + tid + "/admins/" + aid + "/role").header("Authorization", viewer)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"role\":\"auditor\"}"))
+                .andExpect(status().isForbidden());
+    }
+
     // ---- helpers ----
+
+    private String createAdminWithRole(String platformAuth, String tenantId, String email, String pw, String role) throws Exception {
+        mvc.perform(post("/api/v1/tenants/" + tenantId + "/admins").header("Authorization", platformAuth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\",\"password\":\"" + pw + "\",\"role\":\"" + role + "\"}"))
+                .andExpect(status().isCreated());
+        return login(email, pw);
+    }
 
     private String platformCreatedOrgAdmin(String platformAuth, String tenantId, String email, String pw) throws Exception {
         mvc.perform(post("/api/v1/tenants/" + tenantId + "/admins").header("Authorization", platformAuth)

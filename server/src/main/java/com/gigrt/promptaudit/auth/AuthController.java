@@ -38,6 +38,8 @@ public class AuthController {
         Map<String, Object> claims = new LinkedHashMap<>();
         claims.put("sub", id.email);
         claims.put("role", id.role);                       // "platform" | "org"
+        claims.put("cap", id.cap);                         // "viewer" | "auditor" (spec 0003)
+        if (id.adminId != null) claims.put("aid", id.adminId);        // access-log actor id
         if (id.tenantId != null) claims.put("tenant", id.tenantId);   // org id — absent for platform
         if (id.orgName != null) claims.put("org_name", id.orgName);
         String token = jwt.issue(claims);
@@ -45,6 +47,7 @@ public class AuthController {
         Map<String, Object> profile = new LinkedHashMap<>();
         profile.put("email", id.email);
         profile.put("role", id.role);
+        profile.put("cap", id.cap);
         profile.put("tenant", id.tenantId);
         profile.put("org_name", id.orgName);
 
