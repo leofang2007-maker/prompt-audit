@@ -1,6 +1,6 @@
 # 0001 — Tamper-evident audit storage
 
-- **Status:** Draft
+- **Status:** Accepted
 - **Issue:** [#1](https://github.com/leofang2007-maker/prompt-audit/issues/1)
 - **Author:** —
 - **Created:** 2026-07-16
@@ -120,16 +120,23 @@ chain; the platform admin can verify any/all.
   treat pre-chain rows as an explicit "unchained (pre-feature)" segment rather than a break.
 - Additive and safe: no data is dropped; deploying the new image doesn't reset anything.
 
-## Open questions
+## Decisions (resolved 2026-07-16)
 
-1. **Chain scope:** one **per-tenant** chain (matches multi-tenant isolation, better concurrency,
-   loses global ordering) vs one **global** chain (simplest, single sequence, serializes all ingest)?
-   *Leaning per-tenant, with the global/bootstrap-token data as its own chain.*
-2. **Concurrency:** `SELECT … FOR UPDATE` on a `chain_head` row, or `chain_seq` unique + retry?
-3. **Anchoring in v1?** Ship head-anchoring (log line / webhook to security) now, or chain-only first
-   and anchoring as a fast follow? If yes, what's the default anchor sink?
-4. **Backfill** the existing rows, or start the chain fresh from deploy (mark old rows pre-chain)?
-5. **Canonical form:** lock the exact serialization + field set now (changing it later invalidates
-   verification of old rows). JSON-canonical vs a delimited string?
-6. Scope creep check: do we also want a **separate append-only `access_log`** (who viewed which
-   prompt) chained the same way? That overlaps [#3](https://github.com/leofang2007-maker/prompt-audit/issues/3) — keep here or there?
+1. **Chain scope: per-tenant.** One chain per `tenant_org_id`; records reported via the global
+   bootstrap token (null tenant) form a single `__global__` chain. A `chain_head` table holds one
+   row per chain (`chain_key`, `head_hash`, `seq`).
+2. **Concurrency: `SELECT … FOR UPDATE` on the `chain_head` row**, inside the ingest transaction.
+   Per-chain serialization; acceptable at human prompt rates.
+3. **Anchoring in v1: chain + head-hash to the app log.** On each append, log the advancing
+   `head_hash` (`chain=… seq=… head=…`). Since logs typically ship to a SIEM the DBA can't rewrite,
+   this bounds silent re-chaining cheaply. External/webhook anchoring is a **follow-up**.
+4. **Backfill existing rows once.** A startup runner chains any un-hashed rows in `received_at`
+   order, per chain, then seeds `chain_head`.
+5. **Canonical form: versioned, length-prefixed.** `canonical = "v1" ‖ for each field in fixed order:
+   (len(name)‖name ‖ len(value)‖value)` over the persisted fields — immune to delimiter injection,
+   and evolvable to `v2`. Field set + order are frozen by this spec.
+6. **Admin-view access logging stays in [#3](https://github.com/leofang2007-maker/prompt-audit/issues/3).**
+   This spec covers record integrity only; a chained `access_log` can reuse this machinery later.
+
+**Follow-ups (not in this spec):** external/webhook head-anchoring; incremental (since-last-anchor)
+verification; optional signature over the head.

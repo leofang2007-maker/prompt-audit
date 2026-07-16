@@ -42,4 +42,4 @@ A spec has a **Status** in its header, updated over its life:
 
 | # | Title | Status | Issue |
 |---|-------|--------|-------|
-| [0001](0001-tamper-evident-storage.md) | Tamper-evident audit storage | Draft | [#1](https://github.com/leofang2007-maker/prompt-audit/issues/1) |
+| [0001](0001-tamper-evident-storage.md) | Tamper-evident audit storage | Accepted | [#1](https://github.com/leofang2007-maker/prompt-audit/issues/1) |
