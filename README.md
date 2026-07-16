@@ -1,5 +1,8 @@
 # Prompt Audit
 
+[![CI](https://github.com/leofang2007-maker/prompt-audit/actions/workflows/ci.yml/badge.svg)](https://github.com/leofang2007-maker/prompt-audit/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
 > Receive → store → audit the prompts developers send to AI coding tools.
 
 Developers using AI coding tools (Qoder, Claude Code, …) run a small **client hook** that reports
