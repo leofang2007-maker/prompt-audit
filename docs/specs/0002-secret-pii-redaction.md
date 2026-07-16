@@ -1,6 +1,6 @@
 # 0002 — Secret / PII redaction at capture
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Issue:** [#2](https://github.com/leofang2007-maker/prompt-audit/issues/2)
 - **Author:** —
 - **Created:** 2026-07-16

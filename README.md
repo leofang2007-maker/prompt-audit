@@ -189,7 +189,7 @@ Prioritized from real needs security/compliance teams and developers voice about
 Each item is a tracked issue — 👍 or comment to help prioritize:
 
 - ✅ **[Tamper-evident storage](https://github.com/leofang2007-maker/prompt-audit/issues/1)** *(shipped)* — append-only, hash-chained records; verify via `GET /api/v1/integrity`. Design: [spec 0001](docs/specs/0001-tamper-evident-storage.md).
-- **[Secret / PII redaction at capture](https://github.com/leofang2007-maker/prompt-audit/issues/2)** — detect & mask `.env` / keys / PII *before* a prompt is stored, so you keep evidence without hoarding the secrets.
+- ✅ **[Secret / PII redaction at capture](https://github.com/leofang2007-maker/prompt-audit/issues/2)** *(shipped)* — masks well-formed secrets (keys / tokens / private keys / `password=…`) *before* a prompt is stored or hashed, so you keep evidence (count + types) without hoarding the secret. `REDACTION_MODE=mask` by default. Design: [spec 0002](docs/specs/0002-secret-pii-redaction.md).
 - **[Anti-surveillance guardrails](https://github.com/leofang2007-maker/prompt-audit/issues/3)** — role-scoped access, reason-logged admin views, no productivity scoring. (Trust is the adoption wedge, not a nicety.)
 - **[Reporting-coverage / gap detection](https://github.com/leofang2007-maker/prompt-audit/issues/4)** — surface machines/users that *should* be reporting but went silent.
 - **[More client adapters](https://github.com/leofang2007-maker/prompt-audit/issues/5)** — Claude Code, Cursor, Copilot, Codex (the Qoder plugin ships today).
