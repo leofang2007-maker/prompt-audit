@@ -122,6 +122,23 @@ All via env (see [`.env.example`](.env.example)): `DB_*` (MySQL, dedicated `prom
 `ADMIN_EMAIL` / `ADMIN_PASSWORD` (platform superadmin bootstrap), `JWT_SECRET`, `INGEST_TOKEN`
 (optional global/bootstrap token — each org normally gets its own from the Organizations page).
 
+## Data & persistence
+
+Two compose files, two storage models — pick per environment:
+
+| Run | Compose | Database | Data across redeploys |
+|-----|---------|----------|-----------------------|
+| Local / evaluation | `docker-compose.yml` | **bundles** its own MySQL (named volume `promptaudit-db`) | persists in the volume; empty only on the very first `up` |
+| Production | `docker-compose.prod.yml` | connects to **your external** MySQL (`DB_*`) | never touched — your rows live in your MySQL |
+
+The schema is created/upgraded at startup by Hibernate (`ddl-auto=update`) from the JPA entities —
+**additive only**: it adds missing tables/columns and never drops or wipes data. So **deploying a
+new image does not reset the database** — existing rows survive upgrades. (No `.sql` migrations are
+shipped; for stricter production change-control, add Flyway/Liquibase.)
+
+Neither the repo nor the image contains a database or any data — only the app + the schema
+definitions (the JPA entity classes). A database is attached at runtime via `DB_*`.
+
 ## Deployment
 
 Build one image (`ops/build.sh`) and run it with `docker-compose.prod.yml` pointed at your MySQL,
