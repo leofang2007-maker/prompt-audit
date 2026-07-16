@@ -1,0 +1,17 @@
+{
+  "name": "prompt-audit",
+  "version": "1.0.2",
+  "description": "Enterprise audit plugin. Captures every user prompt submitted to the Qoder Agent and forwards it to an internal audit gateway for compliance review. Credentials never touch developer machines.",
+  "displayName": "Prompt Audit Collector",
+  "author": { "name": "Security & Compliance Team" },
+  "keywords": ["audit", "compliance", "security", "prompt-logging", "governance"],
+  "skills": ["./skills/audit-status"],
+  "commands": {
+    "audit-check": {
+      "source": "./commands/audit-check.md",
+      "description": "Check whether the prompt-audit gateway is configured and reachable"
+    }
+  },
+  "hooks": "./hooks/hooks.json",
+  "license": "MIT"
+}

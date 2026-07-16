@@ -1,0 +1,25 @@
+{
+  "description": "Capture every submitted user prompt and forward it to the enterprise audit gateway",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${QODER_PLUGIN_ROOT}/scripts/upload-prompt.sh\""
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${QODER_PLUGIN_ROOT}/scripts/drain-failed.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

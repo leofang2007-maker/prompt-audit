@@ -9,7 +9,10 @@ Developers using AI coding tools (Qoder, Claude Code, …) run a small **client 
 every submitted prompt to this service. Compliance / security teams then browse, filter, inspect,
 and export the audit log through a web console.
 
-This is the **server side** (ingest + storage + audit UI) — clean, minimal, self-hostable.
+This repo ships **both halves**: the **server** (ingest + storage + audit console) and the **Qoder
+client plugin** ([`clients/qoder/`](clients/qoder/)) that captures each prompt and reports it.
+Install the plugin, run the server — done. (Any tool with a pre-submit hook works; see
+[`examples/`](examples/) for a generic reporter and Claude Code wiring.)
 
 ```
   AI coding tool (dev machine)                 Compliance / security team
@@ -112,8 +115,10 @@ See [`examples/`](examples/) for wiring the client hook into Claude Code or any 
 server/   Spring Boot control plane — ingest + audit API + JWT/ingest auth   (plain Spring Boot, Java 8)
           server/Dockerfile builds web/ and bakes the SPA into the jar → one self-contained image
 web/      React + Vite + TS audit console — login, list/filter, detail, export
+clients/  client integrations — clients/qoder/ is the Qoder plugin (UserPromptSubmit hook that
+          reports each prompt, + SessionStart drain-retry for offline queueing)
 ops/      build.sh / deploy.sh / example reverse-proxy config for production
-examples/ client-hook reference (report_prompt.sh + Claude Code wiring)
+examples/ generic client-hook reference (report_prompt.sh + Claude Code wiring)
 ```
 
 ## Configuration
