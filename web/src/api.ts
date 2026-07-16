@@ -24,6 +24,8 @@ export interface Summary {
   branch: string | null;
   hostname: string | null;
   prompt_length: number;
+  redaction_count: number;
+  redacted_types: string | null;
   prompt_preview: string;
 }
 

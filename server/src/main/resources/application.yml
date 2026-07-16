@@ -40,3 +40,10 @@ app:
   # Ingest bearer token for client hooks (write side). Empty ⇒ ingest endpoint is CLOSED (fail shut).
   ingest:
     token: ${INGEST_TOKEN:}
+  # Secret redaction at capture (spec 0002). `mask` (default) masks well-formed secrets — AWS/GitHub/
+  # Google/Slack/Stripe/OpenAI keys, private-key blocks, JWTs, and explicit password=/secret= values —
+  # with a typed token before the prompt is stored or hashed, so the audit log keeps the evidence, not
+  # the secret. Set `off` to store verbatim. `extra` adds operator rules as "type=regex" entries.
+  redaction:
+    mode: ${REDACTION_MODE:mask}
+    extra: ${REDACTION_EXTRA:}

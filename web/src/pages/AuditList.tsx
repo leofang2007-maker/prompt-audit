@@ -97,7 +97,14 @@ export function AuditList() {
                 <td className="nowrap">{it.branch ?? "—"}</td>
                 <td className="nowrap">{it.hostname ?? "—"}</td>
                 <td className="mono">{it.prompt_length}</td>
-                <td className="preview">{it.prompt_preview}</td>
+                <td className="preview">
+                  {it.redaction_count > 0 && (
+                    <span className="redacted-badge" title={`Secrets masked at capture: ${it.redacted_types}`}>
+                      🛡 {it.redaction_count} redacted
+                    </span>
+                  )}
+                  {it.prompt_preview}
+                </td>
               </tr>
             ))}
             {!loading && items.length === 0 && (

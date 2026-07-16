@@ -30,10 +30,12 @@ public class PromptService {
 
     private final PromptRepository repo;
     private final ChainHeadRepository chainHeads;
+    private final Redactor redactor;
 
-    public PromptService(PromptRepository repo, ChainHeadRepository chainHeads) {
+    public PromptService(PromptRepository repo, ChainHeadRepository chainHeads, Redactor redactor) {
         this.repo = repo;
         this.chainHeads = chainHeads;
+        this.redactor = redactor;
     }
 
     /** Outcome of an ingest: the stored record, and whether it was an existing one (deduped). */
@@ -64,7 +66,17 @@ public class PromptService {
         // truncate to the DB's microsecond precision so the in-memory value == the stored value,
         // otherwise re-hashing on verification (which reads the stored value) would mismatch.
         r.setReceivedAt(Instant.now().truncatedTo(ChronoUnit.MICROS));
+
+        // Redact secrets BEFORE anything is stored or hashed (spec 0002): the audit log keeps the
+        // evidence (what type was sent, and that it was) without hoarding the secret itself. Runs
+        // before the chain so the *redacted* prompt is what gets hashed; prompt_length is the stored
+        // (redacted) length.
+        Redactor.Result red = redactor.redact(r.getPrompt());
+        r.setPrompt(red.text);
+        r.setRedactionCount(red.count);
+        r.setRedactedTypes(red.types);
         r.setPromptLength(r.getPrompt() == null ? 0 : r.getPrompt().length());
+        if (red.count > 0) log.info("redacted {} secret(s) [{}] at capture", red.count, red.types);
 
         // ---- append to the tamper-evident chain ----
         String chainKey = ChainHash.chainKey(r.getTenantOrgId());

@@ -305,6 +305,57 @@ class PromptAuditIntegrationTest {
         org.junit.jupiter.api.Assertions.assertEquals(1, promptRepo.findByTenantOrgIdOrderByChainSeqAsc(tid).size());
     }
 
+    // ---- secret redaction at capture (spec 0002) ----
+
+    @Test
+    void secrets_are_masked_before_storage_and_chain_still_verifies() throws Exception {
+        String platform = "Bearer " + adminToken();
+        String tok = createTenant(platform, "Redact");
+        String tid = tenantIdByName(platform, "Redact");
+
+        // A prompt carrying three distinct, well-formed secrets.
+        ingest(tok, "deploy with AKIAIOSFODNN7EXAMPLE and "
+                + "ghp_abcdefghijklmnopqrstuvwxyzABCDEFGHIJ and password=hunter2supersecret done", "redact-sess");
+
+        PromptRecord rec = promptRepo.findByTenantOrgIdOrderByChainSeqAsc(tid).get(0);
+        // Each secret is replaced by its typed token…
+        org.junit.jupiter.api.Assertions.assertTrue(rec.getPrompt().contains("[REDACTED:aws_key]"));
+        org.junit.jupiter.api.Assertions.assertTrue(rec.getPrompt().contains("[REDACTED:github_token]"));
+        org.junit.jupiter.api.Assertions.assertTrue(rec.getPrompt().contains("password=[REDACTED:credential]"));
+        // …and the raw secret is NOT hoarded in the store.
+        org.junit.jupiter.api.Assertions.assertFalse(rec.getPrompt().contains("AKIAIOSFODNN7EXAMPLE"));
+        org.junit.jupiter.api.Assertions.assertFalse(rec.getPrompt().contains("hunter2supersecret"));
+        // Evidence is kept: how many, and which types (sorted, deduped).
+        org.junit.jupiter.api.Assertions.assertEquals(3, rec.getRedactionCount());
+        org.junit.jupiter.api.Assertions.assertEquals("aws_key,credential,github_token", rec.getRedactedTypes());
+
+        // Redaction is deterministic, so the tamper-evident chain (spec 0001) still verifies.
+        String orgAuth = "Bearer " + platformCreatedOrgAdmin(platform, tid, "admin@redact.example", "redact-pw-1");
+        mvc.perform(get("/api/v1/integrity").header("Authorization", orgAuth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true));
+
+        // Admin detail surfaces the redaction metadata.
+        mvc.perform(get("/api/v1/prompts/" + rec.getId()).header("Authorization", orgAuth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.redaction_count").value(3))
+                .andExpect(jsonPath("$.redacted_types").value("aws_key,credential,github_token"));
+    }
+
+    @Test
+    void clean_prompt_is_stored_verbatim() throws Exception {
+        String platform = "Bearer " + adminToken();
+        String tok = createTenant(platform, "NoRedact");
+        String tid = tenantIdByName(platform, "NoRedact");
+
+        String clean = "refactor the auth module and improve error handling";
+        ingest(tok, clean, "clean-sess");
+
+        PromptRecord rec = promptRepo.findByTenantOrgIdOrderByChainSeqAsc(tid).get(0);
+        org.junit.jupiter.api.Assertions.assertEquals(clean, rec.getPrompt());   // untouched — no false positive
+        org.junit.jupiter.api.Assertions.assertEquals(0, rec.getRedactionCount());
+    }
+
     // ---- helpers ----
 
     private String platformCreatedOrgAdmin(String platformAuth, String tenantId, String email, String pw) throws Exception {
