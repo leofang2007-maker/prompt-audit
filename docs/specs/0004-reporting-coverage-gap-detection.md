@@ -1,6 +1,6 @@
 # 0004 — Reporting-coverage / gap detection
 
-- **Status:** Draft
+- **Status:** Accepted
 - **Issue:** [#4](https://github.com/leofang2007-maker/prompt-audit/issues/4)
 - **Author:** —
 - **Created:** 2026-07-16
@@ -114,15 +114,22 @@ posture, not a leaderboard.
 Read-only derivation over existing `prompt_record` — no schema change for the core cadence signals. A
 roster feature adds a small table. Nothing changes about ingest.
 
-## Open questions
+## Decisions (resolved 2026-07-16)
 
-1. **Heartbeat vs cadence-only:** v1 = pure server-side cadence inference, client heartbeat as a
-   follow-up? *(leaning yes — zero client change, no #5 dependency.)*
-2. **Roster source:** v1 = optional manual CSV roster + went-dark; IdP/SCIM deferred to #7? *(leaning yes.)*
-3. **Drill-down granularity (the #3 tension):** do coverage reports stop at **host/machine**, or may
-   they drill down to a **user** (gated behind auditor + access-logged)? *(leaning host-default;
-   user-drill-down only if auditor + logged — need your call.)*
-4. **Alerting in v1** (webhook/email when a gap opens), or dashboard/endpoint only first? *(leaning
-   endpoint/UI first; alerting follow-up.)*
-5. **Thresholds:** fixed defaults (e.g. silent > max(3× median interval, 24h)) vs per-tenant
-   configurable? *(leaning sensible defaults + config override.)*
+1. **Cadence-only, server-side, in v1.** Coverage is derived from existing `prompt_record` data; a
+   client-side heartbeat is a follow-up (no client change, no #5 dependency now).
+2. **Optional manual roster in v1** (an admin sets the tenant's expected host list) enabling the
+   *never-reported* signal; IdP/SCIM roster sync is deferred to #7.
+3. **Host/machine granularity only — no user drill-down (the load-bearing decision).** The coverage
+   unit is `hostname`: "is the control working on this machine." There is deliberately **no** per-user
+   coverage view in v1, so gap detection cannot become "name-and-shame quiet developers" (#3). If a
+   user-level view is ever added, it must be auditor-gated + access-logged — but that's out of scope here.
+4. **Endpoint + UI first; no alerting in v1** (webhook/email when a gap opens is a follow-up).
+5. **Sensible defaults + per-tenant config override.** Default went-dark = silent for >
+   `max(3 × avg interval, 24h)`, and a host needs a minimum history (≥ 5 reports) before it can be
+   flagged, so new/low-volume hosts aren't false-flagged.
+
+**v1 signals:** *went-dark* (cadence) + *never-reported* (roster) + an *active host* headline. *Stale-client*
+(needs client version from #5) and *volume-drop* are noted follow-ups. **Honest limit** (stated in the
+UI): without a roster, only cadence signals exist; a machine that never reported and isn't on a roster is
+invisible — coverage narrows the blind spot, it doesn't eliminate it.
