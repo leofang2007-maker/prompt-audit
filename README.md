@@ -87,6 +87,7 @@ so a machine can't forge its way into another org's data, and every admin read i
 | `GET` | `/api/v1/prompts` | admin | Filtered, paginated list — **isolated to the caller's tenant** (platform sees all). Params: `from,to,user_email,org_id,user_uid,repo,session_id,keyword,page,page_size`. |
 | `GET` | `/api/v1/prompts/{id}` | admin | Full record (cross-tenant id ⇒ 404). |
 | `GET` | `/api/v1/prompts/export?format=csv\|json` | admin | Export the current (tenant-scoped) filter set. |
+| `GET` | `/api/v1/integrity` | admin | Verify the tamper-evident hash chain (spec [0001](docs/specs/0001-tamper-evident-storage.md)); reports `ok` + the first broken record, if any. Tenant-scoped. |
 | `GET`·`POST` | `/api/v1/tenants` · `/{id}/rotate-token` · `DELETE /{id}` | platform | List/create orgs, rotate/revoke their ingest token. |
 | `GET`·`POST` | `/api/v1/tenants/{id}/admins` · `DELETE /{id}/admins/{aid}` | platform | Manage an org's admin logins. |
 | `GET`·`POST` | `/api/v1/my/tenant` · `/tenant/rotate-token` | org admin | View / rotate **your own** org's ingest token. |
@@ -187,7 +188,7 @@ Prioritized from real needs security/compliance teams and developers voice about
 
 Each item is a tracked issue — 👍 or comment to help prioritize:
 
-- **[Tamper-evident storage](https://github.com/leofang2007-maker/prompt-audit/issues/1)** — append-only, hash-chained records so the audit trail can't be silently altered or "broken."
+- ✅ **[Tamper-evident storage](https://github.com/leofang2007-maker/prompt-audit/issues/1)** *(shipped)* — append-only, hash-chained records; verify via `GET /api/v1/integrity`. Design: [spec 0001](docs/specs/0001-tamper-evident-storage.md).
 - **[Secret / PII redaction at capture](https://github.com/leofang2007-maker/prompt-audit/issues/2)** — detect & mask `.env` / keys / PII *before* a prompt is stored, so you keep evidence without hoarding the secrets.
 - **[Anti-surveillance guardrails](https://github.com/leofang2007-maker/prompt-audit/issues/3)** — role-scoped access, reason-logged admin views, no productivity scoring. (Trust is the adoption wedge, not a nicety.)
 - **[Reporting-coverage / gap detection](https://github.com/leofang2007-maker/prompt-audit/issues/4)** — surface machines/users that *should* be reporting but went silent.

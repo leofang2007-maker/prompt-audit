@@ -94,6 +94,16 @@ public class PromptRecord {
     @Column(name = "prompt_length")
     private int promptLength;
 
+    // ---- tamper-evident chain (spec 0001); nullable until backfilled ----
+    @Column(name = "record_hash", length = 64)
+    private String recordHash;
+
+    @Column(name = "prev_hash", length = 64)
+    private String prevHash;
+
+    @Column(name = "chain_seq")
+    private Long chainSeq;
+
     public PromptRecord() {}
 
     public String getId() { return id; }
@@ -132,4 +142,10 @@ public class PromptRecord {
     public void setPrompt(String prompt) { this.prompt = prompt; }
     public int getPromptLength() { return promptLength; }
     public void setPromptLength(int promptLength) { this.promptLength = promptLength; }
+    public String getRecordHash() { return recordHash; }
+    public void setRecordHash(String recordHash) { this.recordHash = recordHash; }
+    public String getPrevHash() { return prevHash; }
+    public void setPrevHash(String prevHash) { this.prevHash = prevHash; }
+    public Long getChainSeq() { return chainSeq; }
+    public void setChainSeq(Long chainSeq) { this.chainSeq = chainSeq; }
 }

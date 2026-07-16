@@ -1,6 +1,6 @@
 # 0001 — Tamper-evident audit storage
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Issue:** [#1](https://github.com/leofang2007-maker/prompt-audit/issues/1)
 - **Author:** —
 - **Created:** 2026-07-16

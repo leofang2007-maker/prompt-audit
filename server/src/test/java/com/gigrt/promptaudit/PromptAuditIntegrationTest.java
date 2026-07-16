@@ -2,8 +2,12 @@ package com.gigrt.promptaudit;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gigrt.promptaudit.audit.PromptRecord;
+import com.gigrt.promptaudit.audit.PromptRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.List;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -24,6 +28,7 @@ class PromptAuditIntegrationTest {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
+    @Autowired PromptRepository promptRepo;
 
     private static final String INGEST = "Bearer test-ingest-token";
 
@@ -241,7 +246,74 @@ class PromptAuditIntegrationTest {
                 .content("{\"name\":\"x\"}")).andExpect(status().isUnauthorized());
     }
 
+    // ---- tamper-evident chain (spec 0001) ----
+
+    @Test
+    void chain_verifies_ok_for_a_tenant() throws Exception {
+        String platform = "Bearer " + adminToken();
+        String tok = createTenant(platform, "ChainOk");
+        String tid = tenantIdByName(platform, "ChainOk");
+        ingest(tok, "first prompt", "c-ok-1");
+        ingest(tok, "second prompt", "c-ok-2");
+        ingest(tok, "third prompt", "c-ok-3");
+
+        mvc.perform(post("/api/v1/tenants/" + tid + "/admins").header("Authorization", platform)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"admin@chainok.example\",\"password\":\"chain-ok-pw\"}"))
+                .andExpect(status().isCreated());
+        String orgAuth = "Bearer " + login("admin@chainok.example", "chain-ok-pw");
+
+        mvc.perform(get("/api/v1/integrity").header("Authorization", orgAuth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(true))
+                .andExpect(jsonPath("$.chains[0].checked").value(3))
+                .andExpect(jsonPath("$.chains[0].first_broken_id").doesNotExist());
+    }
+
+    @Test
+    void tampering_breaks_the_chain() throws Exception {
+        String platform = "Bearer " + adminToken();
+        String tok = createTenant(platform, "ChainTamper");
+        String tid = tenantIdByName(platform, "ChainTamper");
+        ingest(tok, "clean one", "c-t-1");
+        ingest(tok, "clean two", "c-t-2");
+
+        // tamper: edit a stored prompt directly in the DB (record_hash left unchanged → mismatch).
+        List<PromptRecord> rows = promptRepo.findByTenantOrgIdOrderByChainSeqAsc(tid);
+        PromptRecord victim = rows.get(0);
+        victim.setPrompt("SILENTLY EDITED");
+        promptRepo.save(victim);
+
+        String orgAuth = "Bearer " + platformCreatedOrgAdmin(platform, tid, "admin@chaintamper.example", "chain-t-pw");
+        mvc.perform(get("/api/v1/integrity").header("Authorization", orgAuth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ok").value(false))
+                .andExpect(jsonPath("$.chains[0].first_broken_id").value(victim.getId()));
+    }
+
+    @Test
+    void deduped_repeat_adds_no_chain_link() throws Exception {
+        String platform = "Bearer " + adminToken();
+        String tok = createTenant(platform, "ChainDedup");
+        String tid = tenantIdByName(platform, "ChainDedup");
+        String body = "{\"event_id\":\"" + sha(9) + "\",\"prompt\":\"only once\"}";
+        for (int i = 0; i < 2; i++)
+            mvc.perform(post("/api/v1/prompts").header("Authorization", "Bearer " + tok)
+                    .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isOk());
+        // exactly one chained record for this tenant
+        org.junit.jupiter.api.Assertions.assertEquals(1, promptRepo.findByTenantOrgIdOrderByChainSeqAsc(tid).size());
+    }
+
     // ---- helpers ----
+
+    private String platformCreatedOrgAdmin(String platformAuth, String tenantId, String email, String pw) throws Exception {
+        mvc.perform(post("/api/v1/tenants/" + tenantId + "/admins").header("Authorization", platformAuth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\",\"password\":\"" + pw + "\"}"))
+                .andExpect(status().isCreated());
+        return login(email, pw);
+    }
 
     private String createTenant(String platformAuth, String name) throws Exception {
         MvcResult r = mvc.perform(post("/api/v1/tenants").header("Authorization", platformAuth)

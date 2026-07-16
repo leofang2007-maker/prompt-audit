@@ -23,7 +23,8 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(new SecurityInterceptor(jwt, tenants))
                 .addPathPatterns("/api/v1/prompts", "/api/v1/prompts/**",
                         "/api/v1/tenants", "/api/v1/tenants/**",
-                        "/api/v1/my", "/api/v1/my/**");
+                        "/api/v1/my", "/api/v1/my/**",
+                        "/api/v1/integrity");
     }
 
     @Override
