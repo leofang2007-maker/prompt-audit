@@ -65,6 +65,9 @@ body {
 }
 .login-brand { font-weight: 700; font-size: 20px; }
 .login-sub { color: var(--muted); margin: -6px 0 6px; font-size: 13px; }
+.login-or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; margin: 2px 0; }
+.login-or::before, .login-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.login-card a.btn { justify-content: center; }
 
 /* fields */
 .field { display: flex; flex-direction: column; gap: 5px; }

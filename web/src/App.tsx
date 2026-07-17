@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { canViewFull, getProfile, getToken, logout } from "./auth";
+import { canViewFull, consumeSsoRedirect, getProfile, getToken, logout } from "./auth";
 import { Login } from "./pages/Login";
 import { AuditList } from "./pages/AuditList";
 import { TenantsPage } from "./pages/TenantsPage";
@@ -14,6 +14,10 @@ type View = "audit" | "access" | "coverage" | "evidence" | "tenants" | "mytoken"
 export function App() {
   const [authed, setAuthed] = useState<boolean>(!!getToken());
   const [view, setView] = useState<View>("audit");
+  const [ssoError, setSsoError] = useState<string | null>(null);
+  const [booting, setBooting] = useState<boolean>(
+    new URLSearchParams(window.location.search).has("sso") ||
+    new URLSearchParams(window.location.search).has("sso_error"));
 
   // A 401 anywhere (expired/invalid token) drops us back to the login screen.
   useEffect(() => {
@@ -22,7 +26,17 @@ export function App() {
     return () => window.removeEventListener("pa-unauth", onUnauth);
   }, []);
 
-  if (!authed) return <Login onLoggedIn={() => { setView("audit"); setAuthed(true); }} />;
+  // Handle an OIDC SSO redirect (?sso=… / ?sso_error=…) on first load.
+  useEffect(() => {
+    consumeSsoRedirect().then((r) => {
+      if (r?.ok) { setView("audit"); setAuthed(true); }
+      else if (r?.error) setSsoError(r.error);
+      setBooting(false);
+    });
+  }, []);
+
+  if (booting) return <div className="login-wrap"><span className="muted">Signing in…</span></div>;
+  if (!authed) return <Login onLoggedIn={() => { setView("audit"); setAuthed(true); }} ssoError={ssoError} />;
 
   const profile = getProfile();
   const isPlatform = profile?.role === "platform";

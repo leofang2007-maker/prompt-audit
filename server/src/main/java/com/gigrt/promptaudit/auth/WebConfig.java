@@ -31,7 +31,9 @@ public class WebConfig implements WebMvcConfigurer {
                         // spec 0004 — reporting-coverage / gap detection (admin session).
                         "/api/v1/coverage", "/api/v1/coverage/**",
                         // spec 0007 — audit-ready evidence pack (auditor session).
-                        "/api/v1/evidence");
+                        "/api/v1/evidence",
+                        // spec 0008 — profile hydration (needs a valid session; /auth/login + /auth/oidc/* stay public).
+                        "/api/v1/auth/me");
     }
 
     @Override
