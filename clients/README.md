@@ -8,7 +8,7 @@ prompt-submit hook, using the same ingest contract (`POST /api/v1/prompts` with 
 | Adapter | Tool | Status | Notes |
 |---|---|---|---|
 | [`qoder/`](qoder/) | Qoder | ✅ **Verified in a real deployment** | Exercised end-to-end against a live gateway on real dev machines. |
-| [`claude-code/`](claude-code/) | Claude Code | ⚠️ **Built to the documented API — not yet verified on a live install** | Field names checked against Claude Code docs and validated against a mock ingest server; not yet run against a real Claude Code (incl. managed-settings enforcement). |
+| [`claude-code/`](claude-code/) | Claude Code | ⚠️ **Built to the documented API — not yet verified on a live install** ([#15](https://github.com/leofang2007-maker/prompt-audit/issues/15)) | Field names checked against Claude Code docs and validated against a mock ingest server; not yet run against a real Claude Code (incl. managed-settings enforcement). |
 
 > **What "not yet verified" means:** the Claude Code adapter (and any future adapter marked this way) is
 > written to the tool's **documented** hook contract and validated against a mock server, but has **not**
