@@ -48,4 +48,4 @@ A spec has a **Status** in its header, updated over its life:
 | [0004](0004-reporting-coverage-gap-detection.md) | Reporting-coverage / gap detection | Implemented | [#4](https://github.com/leofang2007-maker/prompt-audit/issues/4) |
 | [0005](0005-claude-code-adapter.md) | Claude Code adapter (enterprise-enforced) | Implemented | [#5](https://github.com/leofang2007-maker/prompt-audit/issues/5) |
 | [0006](0006-cursor-codex-copilot-adapters.md) | Cursor / Codex / GitHub Copilot adapters | Implemented | [#5](https://github.com/leofang2007-maker/prompt-audit/issues/5) |
-| [0007](0007-audit-ready-kit.md) | Audit-ready kit (control mappings + evidence export) | Draft | [#6](https://github.com/leofang2007-maker/prompt-audit/issues/6) |
+| [0007](0007-audit-ready-kit.md) | Audit-ready kit (control mappings + evidence export) | Accepted | [#6](https://github.com/leofang2007-maker/prompt-audit/issues/6) |

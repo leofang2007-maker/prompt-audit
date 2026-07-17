@@ -1,6 +1,6 @@
 # 0007 — Audit-ready kit (control mappings + evidence export)
 
-- **Status:** Draft
+- **Status:** Accepted
 - **Issue:** [#6](https://github.com/leofang2007-maker/prompt-audit/issues/6)
 - **Author:** —
 - **Created:** 2026-07-17
@@ -115,15 +115,17 @@ client-side, keeping the server simple.)
 Additive: new read endpoint + `docs/compliance/` + a UI page. One or two aggregate queries; no schema
 change. No ingest change.
 
-## Open questions
+## Decisions (resolved 2026-07-17)
 
-1. **Bundle contents** — the set above (integrity + access-log summary + coverage + redaction + counts +
-   config attestation)? Include anything else (e.g. list of admins & roles, token rotation history)?
-   *(leaning the set above; admins+roles is a cheap useful add.)*
-2. **Format** — JSON + client-rendered HTML report (print-to-PDF), server stays JSON-only? *(leaning yes;
-   PDF/CSV later.)*
-3. **Tamper anchor** — self-`bundle_hash` + embedded chain head hashes in v1, real PKI signature later?
-   *(leaning yes.)*
-4. **Frameworks in v1** — SOC 2 + ISO 27001 both? (NIST 800-53 / GDPR mappings later.) *(leaning both.)*
-5. **Access** — auditor + platform only, access-logged? *(leaning yes.)*
-6. **Period** — arbitrary `from/to`, default last 90 days? *(leaning yes.)*
+1. **Bundle contents:** integrity (#1) + access-log summary (#3) + coverage snapshot (#4) + redaction
+   stats (#2) + record counts + config attestation + **admins & roles list** (cheap, auditor-useful).
+   **Summary/counts/hashes only — no raw prompt text** (the evidence pack must not itself be a
+   secret-hoard); raw export stays the separate reason-gated `/prompts/export`.
+2. **JSON only from the server**; the UI renders a printable HTML report + offers JSON download.
+   PDF/CSV are follow-ups (browser print-to-PDF suffices).
+3. **Tamper anchor:** a `bundle_hash` (self-hash of the content) + embedded chain head hashes (#1/#3).
+   Real PKI signing is a follow-up.
+4. **Frameworks in v1:** SOC 2 (Trust Services Criteria) **and** ISO 27001 (Annex A); NIST 800-53 / GDPR
+   later. Marked as templates ("confirm with your auditor").
+5. **Access:** auditor + platform only (viewers denied); generation is written to the access log.
+6. **Period:** arbitrary `from`/`to`, default the last 90 days.
