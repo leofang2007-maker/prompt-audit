@@ -1,5 +1,8 @@
 # Prompt Audit — Qoder plugin (`prompt-audit`)
 
+> ✅ **Verification status: verified in a real deployment** — exercised end-to-end against a live gateway
+> on real dev machines. (See [`clients/README.md`](../README.md) for the status of all adapters.)
+
 Enterprise audit plugin. Via Qoder's `UserPromptSubmit` hook, it captures every **raw prompt** a
 team member submits to the Agent — plus identity/context (email / user / org / repo / branch /
 session / transcript path) — and forwards it to an **audit gateway** (this project's server) for

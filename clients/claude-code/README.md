@@ -1,5 +1,13 @@
 # Claude Code adapter
 
+> ⚠️ **Verification status: built to the documented API — not yet verified on a live install.** Field
+> names were checked against the Claude Code docs and the adapter was validated against a mock ingest
+> server, but it has **not** yet been run end-to-end on a real Claude Code (including managed-settings
+> enforcement). If you run it for real and something's off, please
+> [open an issue](https://github.com/leofang2007-maker/prompt-audit/issues/new) with your Claude Code
+> version — that's the fastest path to a fix. (The Qoder adapter, by contrast, is verified in a real
+> deployment. See [`clients/README.md`](../README.md).)
+
 Reports every prompt submitted in [Claude Code](https://code.claude.com) to a prompt-audit server, via
 a `UserPromptSubmit` hook. Pure audit: **non-blocking and fail-open** — it never delays or rejects a
 prompt, and any error passes through silently.

@@ -1,6 +1,6 @@
 # 0005 — Claude Code adapter (enterprise-enforced)
 
-- **Status:** Implemented
+- **Status:** Implemented (⚠️ built to the documented API — not yet verified on a live Claude Code install; see [`clients/README.md`](../../clients/README.md))
 - **Issue:** [#5](https://github.com/leofang2007-maker/prompt-audit/issues/5)
 - **Author:** —
 - **Created:** 2026-07-17
