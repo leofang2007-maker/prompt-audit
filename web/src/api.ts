@@ -180,6 +180,38 @@ export async function setRoster(entities: string[]): Promise<number> {
   return (await r.json()).size ?? 0;
 }
 
+// ---- SSO diagnostics (spec 0008; platform-only) ----
+
+export interface OidcConfig {
+  config: {
+    usable: boolean;
+    enabled_flag: boolean;
+    issuer: string;
+    client_id: string;
+    client_secret_set: boolean;
+    redirect_uri: string;
+    scopes: string;
+    default: string;
+    platform_emails: string[];
+    email_roles: Record<string, string>;
+    domain_roles: Record<string, string>;
+  };
+  discovery: {
+    ok: boolean;
+    error?: string;
+    issuer?: string;
+    authorization_endpoint?: string;
+    token_endpoint?: string;
+    jwks_uri?: string;
+  };
+}
+
+export async function getOidcConfig(): Promise<OidcConfig> {
+  const r = await authedFetch("/api/v1/auth/oidc/config");
+  if (!r.ok) throw new Error(`SSO config failed: ${r.status}`);
+  return r.json();
+}
+
 // ---- audit-ready evidence pack (spec 0007) ----
 
 export interface Evidence {

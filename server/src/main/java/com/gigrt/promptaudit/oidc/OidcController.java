@@ -1,6 +1,7 @@
 package com.gigrt.promptaudit.oidc;
 
 import com.gigrt.promptaudit.auth.JwtUtil;
+import com.gigrt.promptaudit.auth.SecurityInterceptor;
 import com.gigrt.promptaudit.tenant.Tenant;
 import com.gigrt.promptaudit.tenant.TenantService;
 import org.springframework.http.HttpStatus;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.security.SecureRandom;
@@ -42,6 +44,21 @@ public class OidcController {
     @GetMapping("/status")
     public Map<String, Object> status() {
         return Collections.singletonMap("enabled", props.isUsable());
+    }
+
+    /** Platform-admin SSO diagnostics: non-secret config summary + a live discovery probe. Never
+     *  returns the client secret. (Config itself is set via env — this page is status + self-test.) */
+    @GetMapping("/config")
+    public ResponseEntity<Map<String, Object>> config(HttpServletRequest req) {
+        Map<String, Object> p = SecurityInterceptor.principal(req);
+        Object role = p == null ? null : p.get("role");
+        if (!(TenantService.ROLE_PLATFORM.equals(role) || "admin".equals(role)))
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Collections.singletonMap("error", "forbidden"));
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("config", props.describe());
+        resp.put("discovery", oidc.testDiscovery());
+        return ResponseEntity.ok(resp);
     }
 
     /** Begin the code flow: 302 to the IdP with a signed state (carrying the nonce). */

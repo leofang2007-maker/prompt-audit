@@ -614,6 +614,28 @@ class PromptAuditIntegrationTest {
     }
 
     @Test
+    void oidc_config_is_platform_only_and_hides_the_secret() throws Exception {
+        // no auth → 401
+        mvc.perform(get("/api/v1/auth/oidc/config")).andExpect(status().isUnauthorized());
+
+        // an org admin is forbidden
+        String platform = "Bearer " + adminToken();
+        createTenant(platform, "SsoOrg");
+        String tid = tenantIdByName(platform, "SsoOrg");
+        String org = "Bearer " + createAdminWithRole(platform, tid, "org@sso.example", "sso-pw-1234", "auditor");
+        mvc.perform(get("/api/v1/auth/oidc/config").header("Authorization", org))
+                .andExpect(status().isForbidden());
+
+        // platform admin gets the (non-secret) config summary
+        mvc.perform(get("/api/v1/auth/oidc/config").header("Authorization", platform))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.config.usable").value(false))
+                .andExpect(jsonPath("$.config.client_secret_set").value(false))
+                .andExpect(jsonPath("$.config.client_secret").doesNotExist())   // never leaked
+                .andExpect(jsonPath("$.discovery").exists());
+    }
+
+    @Test
     void auth_me_requires_session_and_returns_profile() throws Exception {
         mvc.perform(get("/api/v1/auth/me")).andExpect(status().isUnauthorized());
         String tok = adminToken();
