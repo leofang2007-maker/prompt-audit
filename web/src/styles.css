@@ -122,6 +122,15 @@ body {
 ul.disclosure { list-style: none; padding: 0; margin: 0 0 6px; }
 ul.disclosure li { padding: 4px 0; font-size: 13px; }
 
+/* evidence pack print (spec 0007) — clean printable report */
+@media print {
+  .topbar, .filter-actions, .login-sub a { display: none !important; }
+  body { background: #fff; color: #000; }
+  .panel-page, .main { max-width: none; }
+  .cov-card, .sub-panel, .integrity { border-color: #ccc; }
+}
+.evidence-report { margin-top: 8px; }
+
 /* coverage (spec 0004) */
 .coverage-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 8px 0 18px; }
 .cov-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: center; }

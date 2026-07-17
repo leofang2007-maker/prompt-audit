@@ -29,6 +29,7 @@ class PromptAuditIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired PromptRepository promptRepo;
+    @Autowired com.gigrt.promptaudit.compliance.EvidenceService evidenceService;
 
     private static final String INGEST = "Bearer test-ingest-token";
 
@@ -541,6 +542,59 @@ class PromptAuditIntegrationTest {
     @Test
     void coverage_requires_admin_auth() throws Exception {
         mvc.perform(get("/api/v1/coverage")).andExpect(status().isUnauthorized());
+    }
+
+    // ---- audit-ready evidence pack (spec 0007) ----
+
+    @Test
+    void evidence_requires_auditor_and_is_access_logged() throws Exception {
+        String platform = "Bearer " + adminToken();
+        String tok = createTenant(platform, "Evidence");
+        String tid = tenantIdByName(platform, "Evidence");
+        ingest(tok, "a normal prompt", "ev-1");
+        ingest(tok, "deploy AKIAIOSFODNN7EXAMPLE now", "ev-2");   // one secret → redaction
+
+        // viewer is denied
+        String viewer = "Bearer " + createAdminWithRole(platform, tid, "viewer@ev.example", "ev-pw-1234", "viewer");
+        mvc.perform(get("/api/v1/evidence").header("Authorization", viewer))
+                .andExpect(status().isForbidden());
+
+        // auditor gets a populated bundle
+        String auditor = "Bearer " + createAdminWithRole(platform, tid, "auditor@ev.example", "ev-pw-1234", "auditor");
+        mvc.perform(get("/api/v1/evidence").header("Authorization", auditor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tenant").value(tid))
+                .andExpect(jsonPath("$.integrity.ok").exists())
+                .andExpect(jsonPath("$.access_log.chain_ok").exists())
+                .andExpect(jsonPath("$.coverage.total_hosts").exists())
+                .andExpect(jsonPath("$.redaction.records_with_redactions").value(1))
+                .andExpect(jsonPath("$.records.total_in_period").value(2))
+                .andExpect(jsonPath("$.config.redaction_mode").value("mask"))
+                .andExpect(jsonPath("$.bundle_hash").exists());
+
+        // generating evidence was itself recorded in the access log
+        mvc.perform(get("/api/v1/access-log").header("Authorization", auditor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].action").value("evidence"));
+    }
+
+    @Test
+    void evidence_bundle_hash_is_deterministic_and_change_sensitive() throws Exception {
+        String platform = "Bearer " + adminToken();
+        String tok = createTenant(platform, "EvidenceHash");
+        String tid = tenantIdByName(platform, "EvidenceHash");
+        ingest(tok, "first", "eh-1");
+
+        java.time.Instant from = java.time.Instant.parse("2020-01-01T00:00:00Z");
+        java.time.Instant to = java.time.Instant.parse("2035-01-01T00:00:00Z");
+        // EvidenceService.build is a pure function of DB state (bundle_hash excludes generated_at)
+        String h1 = (String) evidenceService.build(tid, from, to).get("bundle_hash");
+        String h2 = (String) evidenceService.build(tid, from, to).get("bundle_hash");
+        org.junit.jupiter.api.Assertions.assertEquals(h1, h2);        // identical state → identical hash
+
+        ingest(tok, "second", "eh-2");
+        String h3 = (String) evidenceService.build(tid, from, to).get("bundle_hash");
+        org.junit.jupiter.api.Assertions.assertNotEquals(h1, h3);     // data changed → hash changed
     }
 
     // ---- helpers ----

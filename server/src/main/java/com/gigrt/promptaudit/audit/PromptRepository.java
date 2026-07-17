@@ -33,6 +33,27 @@ public interface PromptRepository
             + "group by p.hostname")
     List<HostAgg> aggregateHosts(@Param("scope") String scope);
 
+    // ---- audit-ready evidence aggregates (spec 0007) ----
+
+    @Query("select count(p) from PromptRecord p where (:scope is null or p.tenantOrgId = :scope) "
+            + "and p.receivedAt between :from and :to")
+    long countInPeriod(@Param("scope") String scope, @Param("from") Instant from, @Param("to") Instant to);
+
+    @Query("select count(p) from PromptRecord p where (:scope is null or p.tenantOrgId = :scope)")
+    long countAllForScope(@Param("scope") String scope);
+
+    @Query("select count(p) from PromptRecord p where (:scope is null or p.tenantOrgId = :scope) "
+            + "and p.redactionCount > 0 and p.receivedAt between :from and :to")
+    long countRedactedInPeriod(@Param("scope") String scope, @Param("from") Instant from, @Param("to") Instant to);
+
+    @Query("select coalesce(sum(p.redactionCount), 0) from PromptRecord p where (:scope is null or p.tenantOrgId = :scope) "
+            + "and p.receivedAt between :from and :to")
+    long sumRedactionsInPeriod(@Param("scope") String scope, @Param("from") Instant from, @Param("to") Instant to);
+
+    @Query("select p.redactedTypes from PromptRecord p where (:scope is null or p.tenantOrgId = :scope) "
+            + "and p.redactionCount > 0 and p.receivedAt between :from and :to")
+    List<String> redactedTypesInPeriod(@Param("scope") String scope, @Param("from") Instant from, @Param("to") Instant to);
+
     // ---- tamper-evident chain (spec 0001) ----
     List<PromptRecord> findByTenantOrgIdOrderByChainSeqAsc(String tenantOrgId);
     List<PromptRecord> findByTenantOrgIdIsNullOrderByChainSeqAsc();
