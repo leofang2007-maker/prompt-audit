@@ -29,11 +29,16 @@ public class JwtUtil {
     private long ttlSeconds;
 
     public String issue(Map<String, Object> claims) {
+        return issue(claims, ttlSeconds);
+    }
+
+    /** Issue with an explicit TTL (used e.g. for the short-lived OIDC {@code state} token). */
+    public String issue(Map<String, Object> claims, long ttl) {
         try {
             long now = System.currentTimeMillis() / 1000;
             Map<String, Object> payload = new LinkedHashMap<>(claims);
             payload.put("iat", now);
-            payload.put("exp", now + ttlSeconds);
+            payload.put("exp", now + ttl);
             String h = b64.encodeToString("{\"alg\":\"HS256\",\"typ\":\"JWT\"}".getBytes(StandardCharsets.UTF_8));
             String p = b64.encodeToString(mapper.writeValueAsBytes(payload));
             String sig = sign(h + "." + p);

@@ -597,6 +597,33 @@ class PromptAuditIntegrationTest {
         org.junit.jupiter.api.Assertions.assertNotEquals(h1, h3);     // data changed → hash changed
     }
 
+    // ---- OIDC SSO endpoints (spec 0008) ----
+
+    @Test
+    void oidc_status_is_disabled_by_default() throws Exception {
+        mvc.perform(get("/api/v1/auth/oidc/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enabled").value(false));
+    }
+
+    @Test
+    void oidc_login_when_disabled_redirects_with_error() throws Exception {
+        mvc.perform(get("/api/v1/auth/oidc/login"))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", org.hamcrest.Matchers.containsString("sso_error")));
+    }
+
+    @Test
+    void auth_me_requires_session_and_returns_profile() throws Exception {
+        mvc.perform(get("/api/v1/auth/me")).andExpect(status().isUnauthorized());
+        String tok = adminToken();
+        mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + tok))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("admin@promptaudit.local"))
+                .andExpect(jsonPath("$.role").value("platform"))
+                .andExpect(jsonPath("$.cap").value("auditor"));
+    }
+
     // ---- helpers ----
 
     private int seedSeq = 0;

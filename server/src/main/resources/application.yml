@@ -59,3 +59,18 @@ app:
     silent-multiplier: ${COVERAGE_SILENT_MULTIPLIER:3.0}
     floor-hours: ${COVERAGE_FLOOR_HOURS:24}
     min-history: ${COVERAGE_MIN_HISTORY:5}
+  # Native OIDC SSO (spec 0008). Off by default. Point `issuer` at your IdP (Okta/Azure AD/Google/…),
+  # set client-id/secret and a redirect-uri of https://<your-host>/api/v1/auth/oidc/callback.
+  # Mapping is DEFAULT-DENY: an authenticated user with no matching rule gets no access. Platform role
+  # only via platform-emails. email-roles/domain-roles map to "<tenantId>:<viewer|auditor>".
+  oidc:
+    enabled: ${OIDC_ENABLED:false}
+    issuer: ${OIDC_ISSUER:}
+    client-id: ${OIDC_CLIENT_ID:}
+    client-secret: ${OIDC_CLIENT_SECRET:}
+    redirect-uri: ${OIDC_REDIRECT_URI:}
+    scopes: ${OIDC_SCOPES:openid email profile}
+    platform-emails: ${OIDC_PLATFORM_EMAILS:}
+    email-roles: ${OIDC_EMAIL_ROLES:}
+    domain-roles: ${OIDC_DOMAIN_ROLES:}
+    default: ${OIDC_DEFAULT:deny}

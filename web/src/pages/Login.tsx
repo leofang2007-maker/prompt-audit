@@ -1,11 +1,14 @@
-import { useState } from "react";
-import { login } from "../auth";
+import { useEffect, useState } from "react";
+import { login, ssoEnabled, ssoLoginUrl } from "../auth";
 
-export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
+export function Login({ onLoggedIn, ssoError }: { onLoggedIn: () => void; ssoError?: string | null }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(ssoError ?? null);
   const [busy, setBusy] = useState(false);
+  const [sso, setSso] = useState(false);
+
+  useEffect(() => { ssoEnabled().then(setSso); }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -36,6 +39,12 @@ export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
         <button className="btn primary" type="submit" disabled={busy}>
           {busy ? "Signing in…" : "Sign in"}
         </button>
+        {sso && (
+          <>
+            <div className="login-or"><span>or</span></div>
+            <a className="btn" href={ssoLoginUrl}>Sign in with SSO</a>
+          </>
+        )}
       </form>
     </div>
   );

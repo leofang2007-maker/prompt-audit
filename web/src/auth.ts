@@ -36,6 +36,38 @@ export async function login(email: string, password: string): Promise<{ ok: bool
   return { ok: true };
 }
 
+// ---- OIDC SSO (spec 0008) ----
+
+export const ssoLoginUrl = "/api/v1/auth/oidc/login";
+
+/** Is native OIDC SSO configured on the server? (controls whether the SSO button shows) */
+export async function ssoEnabled(): Promise<boolean> {
+  try {
+    const r = await fetch("/api/v1/auth/oidc/status");
+    return r.ok && (await r.json()).enabled === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Handle the SSO callback redirect (`/?sso=<jwt>` or `/?sso_error=…`). Stores the token, hydrates the
+ * profile via /auth/me, and cleans the URL. Returns null if this isn't an SSO redirect.
+ */
+export async function consumeSsoRedirect(): Promise<{ ok: boolean; error?: string } | null> {
+  const params = new URLSearchParams(window.location.search);
+  const sso = params.get("sso");
+  const err = params.get("sso_error");
+  if (!sso && !err) return null;
+  window.history.replaceState({}, "", window.location.pathname);   // scrub the token from the URL
+  if (err) return { ok: false, error: err };
+  localStorage.setItem(KEY, sso!);
+  const r = await fetch("/api/v1/auth/me", { headers: { Authorization: `Bearer ${sso}` } });
+  if (!r.ok) { localStorage.removeItem(KEY); return { ok: false, error: "SSO session invalid" }; }
+  localStorage.setItem(PKEY, JSON.stringify(await r.json()));
+  return { ok: true };
+}
+
 export async function logout() {
   try { await authedFetch("/api/v1/auth/logout", { method: "POST" }); } catch { /* stateless */ }
   localStorage.removeItem(KEY);

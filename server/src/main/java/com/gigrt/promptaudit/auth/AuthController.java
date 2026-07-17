@@ -61,5 +61,18 @@ public class AuthController {
     @PostMapping("/logout")
     public Map<String, Object> logout() { return Collections.singletonMap("ok", true); }
 
+    /** Profile for the current session token — used to hydrate the SPA after an SSO redirect (spec 0008). */
+    @GetMapping("/me")
+    public Map<String, Object> me(javax.servlet.http.HttpServletRequest req) {
+        Map<String, Object> p = SecurityInterceptor.principal(req);
+        Map<String, Object> profile = new LinkedHashMap<>();
+        profile.put("email", p == null ? null : p.get("sub"));
+        profile.put("role", p == null ? null : p.get("role"));
+        profile.put("cap", p == null ? null : p.get("cap"));
+        profile.put("tenant", p == null ? null : p.get("tenant"));
+        profile.put("org_name", p == null ? null : p.get("org_name"));
+        return profile;
+    }
+
     private static String str(Object o) { return o == null ? null : String.valueOf(o); }
 }
