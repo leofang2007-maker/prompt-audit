@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [
+      {
+        "type": "command",
+        "command": "sh \"<ADAPTER_DIR>/scripts/report-prompt.sh\"",
+        "timeout": 10,
+        "failClosed": false
+      }
+    ],
+    "sessionStart": [
+      {
+        "type": "command",
+        "command": "sh \"<ADAPTER_DIR>/scripts/drain-failed.sh\"",
+        "timeout": 10,
+        "failClosed": false
+      }
+    ]
+  }
+}
