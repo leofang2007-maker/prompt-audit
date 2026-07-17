@@ -1,6 +1,6 @@
 # 0006 — Cursor / Codex / GitHub Copilot adapters
 
-- **Status:** Accepted
+- **Status:** Implemented (⚠️ all three doc-based — not yet verified on live installs; see [`clients/README.md`](../../clients/README.md) and issues #16/#17/#18)
 - **Issue:** [#5](https://github.com/leofang2007-maker/prompt-audit/issues/5)
 - **Author:** —
 - **Created:** 2026-07-17
