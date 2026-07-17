@@ -32,8 +32,9 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/v1/coverage", "/api/v1/coverage/**",
                         // spec 0007 — audit-ready evidence pack (auditor session).
                         "/api/v1/evidence",
-                        // spec 0008 — profile hydration (needs a valid session; /auth/login + /auth/oidc/* stay public).
-                        "/api/v1/auth/me");
+                        // spec 0008 — profile hydration + platform SSO diagnostics (need a valid session;
+                        // /auth/login + /auth/oidc/{login,callback,status} stay public).
+                        "/api/v1/auth/me", "/api/v1/auth/oidc/config");
     }
 
     @Override

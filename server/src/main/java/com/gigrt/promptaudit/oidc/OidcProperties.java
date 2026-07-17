@@ -51,6 +51,23 @@ public class OidcProperties {
                 && !clientSecret.isEmpty() && !redirectUri.isEmpty();
     }
 
+    /** Non-secret config summary for the admin SSO page — NEVER includes the client secret. */
+    public Map<String, Object> describe() {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("usable", isUsable());
+        m.put("enabled_flag", enabled);
+        m.put("issuer", issuer);
+        m.put("client_id", clientId);
+        m.put("client_secret_set", !clientSecret.isEmpty());   // presence only
+        m.put("redirect_uri", redirectUri);
+        m.put("scopes", scopes);
+        m.put("default", defaultRule);
+        m.put("platform_emails", platformEmails);
+        m.put("email_roles", emailRoles);
+        m.put("domain_roles", domainRoles);
+        return m;
+    }
+
     /** Resolved mapping for an authenticated identity, or null = deny. */
     public static final class Mapping {
         public final String role, cap, tenant;   // role: platform|org; cap: viewer|auditor; tenant: id|null

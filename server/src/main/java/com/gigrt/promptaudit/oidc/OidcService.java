@@ -51,6 +51,31 @@ public class OidcService {
 
     public OidcService(OidcProperties props) { this.props = props; }
 
+    /** Live discovery probe for the admin SSO page: does {issuer}/.well-known/openid-configuration
+     *  resolve, and what endpoints come back? Never throws — returns {ok, endpoints…} or {ok:false, error}. */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> testDiscovery() {
+        java.util.LinkedHashMap<String, Object> m = new java.util.LinkedHashMap<>();
+        if (props.issuer == null || props.issuer.isEmpty()) { m.put("ok", false); m.put("error", "issuer not set"); return m; }
+        try {
+            Map<String, Object> d = rt.getForObject(props.issuer + "/.well-known/openid-configuration", Map.class);
+            boolean ok = d != null && d.get("authorization_endpoint") != null
+                    && d.get("token_endpoint") != null && d.get("jwks_uri") != null;
+            m.put("ok", ok);
+            if (d != null) {
+                m.put("issuer", d.get("issuer"));
+                m.put("authorization_endpoint", d.get("authorization_endpoint"));
+                m.put("token_endpoint", d.get("token_endpoint"));
+                m.put("jwks_uri", d.get("jwks_uri"));
+            }
+            if (!ok) m.put("error", "discovery document incomplete");
+        } catch (Exception e) {
+            m.put("ok", false);
+            m.put("error", e.getMessage());
+        }
+        return m;
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> discovery() {
         Map<String, Object> d = discovery;

@@ -8,8 +8,9 @@ import { AccessLogPage } from "./pages/AccessLogPage";
 import { TransparencyPage } from "./pages/TransparencyPage";
 import { CoveragePage } from "./pages/CoveragePage";
 import { EvidencePage } from "./pages/EvidencePage";
+import { SsoSettingsPage } from "./pages/SsoSettingsPage";
 
-type View = "audit" | "access" | "coverage" | "evidence" | "tenants" | "mytoken" | "transparency";
+type View = "audit" | "access" | "coverage" | "evidence" | "tenants" | "mytoken" | "transparency" | "sso";
 
 export function App() {
   const [authed, setAuthed] = useState<boolean>(!!getToken());
@@ -65,6 +66,11 @@ export function App() {
               Organizations
             </button>
           )}
+          {isPlatform && (
+            <button className={"tab" + (view === "sso" ? " active" : "")} onClick={() => setView("sso")}>
+              SSO
+            </button>
+          )}
           {!isPlatform && (
             <button className={"tab" + (view === "mytoken" ? " active" : "")} onClick={() => setView("mytoken")}>
               My ingest token
@@ -90,6 +96,7 @@ export function App() {
         {view === "coverage" && <CoveragePage />}
         {view === "evidence" && canViewFull() && <EvidencePage />}
         {view === "tenants" && isPlatform && <TenantsPage />}
+        {view === "sso" && isPlatform && <SsoSettingsPage />}
         {view === "mytoken" && !isPlatform && <MyTokenPage />}
         {view === "transparency" && <TransparencyPage />}
       </main>

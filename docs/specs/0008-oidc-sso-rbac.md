@@ -119,3 +119,10 @@ sessions are mapping-provisioned, not stored). Off by default.
 
 **Follow-ups (not in this spec):** trusted reverse-proxy header SSO as an alternative; SCIM provisioning;
 writing an audit row per SSO login.
+
+**Added later (platform SSO page):** a platform-admin **SSO page** — `GET /api/v1/auth/oidc/config`
+(platform-only; returns the non-secret config summary + a live discovery probe, **never the client
+secret**) + a UI that shows status, the redirect URI to register, tests the IdP connection, and includes
+a **client-side config generator** that builds the `OIDC_*` `.env` snippet. Deliberately status +
+self-test + generator, **not** a DB-backed form: the client secret stays in the environment and auth is
+not runtime-mutable (which would open a repoint/takeover vector) — the intentional safe scope.
