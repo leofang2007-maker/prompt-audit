@@ -1,6 +1,6 @@
 # 0007 — Audit-ready kit (control mappings + evidence export)
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Issue:** [#6](https://github.com/leofang2007-maker/prompt-audit/issues/6)
 - **Author:** —
 - **Created:** 2026-07-17
