@@ -1,6 +1,6 @@
 # 0005 — Claude Code adapter (enterprise-enforced)
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Issue:** [#5](https://github.com/leofang2007-maker/prompt-audit/issues/5)
 - **Author:** —
 - **Created:** 2026-07-17
