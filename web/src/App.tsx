@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getProfile, getToken, logout } from "./auth";
+import { canViewFull, getProfile, getToken, logout } from "./auth";
 import { Login } from "./pages/Login";
 import { AuditList } from "./pages/AuditList";
 import { TenantsPage } from "./pages/TenantsPage";
@@ -7,8 +7,9 @@ import { MyTokenPage } from "./pages/MyTokenPage";
 import { AccessLogPage } from "./pages/AccessLogPage";
 import { TransparencyPage } from "./pages/TransparencyPage";
 import { CoveragePage } from "./pages/CoveragePage";
+import { EvidencePage } from "./pages/EvidencePage";
 
-type View = "audit" | "access" | "coverage" | "tenants" | "mytoken" | "transparency";
+type View = "audit" | "access" | "coverage" | "evidence" | "tenants" | "mytoken" | "transparency";
 
 export function App() {
   const [authed, setAuthed] = useState<boolean>(!!getToken());
@@ -40,6 +41,11 @@ export function App() {
           <button className={"tab" + (view === "coverage" ? " active" : "")} onClick={() => setView("coverage")}>
             Coverage
           </button>
+          {canViewFull() && (
+            <button className={"tab" + (view === "evidence" ? " active" : "")} onClick={() => setView("evidence")}>
+              Evidence
+            </button>
+          )}
           {isPlatform && (
             <button className={"tab" + (view === "tenants" ? " active" : "")} onClick={() => setView("tenants")}>
               Organizations
@@ -68,6 +74,7 @@ export function App() {
         {view === "audit" && <AuditList />}
         {view === "access" && <AccessLogPage />}
         {view === "coverage" && <CoveragePage />}
+        {view === "evidence" && canViewFull() && <EvidencePage />}
         {view === "tenants" && isPlatform && <TenantsPage />}
         {view === "mytoken" && !isPlatform && <MyTokenPage />}
         {view === "transparency" && <TransparencyPage />}

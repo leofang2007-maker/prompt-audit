@@ -180,6 +180,35 @@ export async function setRoster(entities: string[]): Promise<number> {
   return (await r.json()).size ?? 0;
 }
 
+// ---- audit-ready evidence pack (spec 0007) ----
+
+export interface Evidence {
+  generated_at: string;
+  period: { from: string; to: string };
+  tenant: string | null;
+  integrity: { ok: boolean; chains: unknown[] };
+  access_log: { total: number; by_action: Record<string, number>; chain_ok: boolean; head_hashes: string[] };
+  coverage: { total_hosts: number; active_hosts: number; went_dark: number; never_reported: number };
+  redaction: { records_with_redactions: number; secrets_masked: number; by_type: Record<string, number> };
+  records: { total_in_period: number; total_all_time: number };
+  config: {
+    redaction_mode: string; redaction_enabled: boolean; reason_required_for_full_text: boolean;
+    retention: string; auth_model: string; roles: string[];
+  };
+  admins?: { email: string; role: string }[];
+  bundle_hash: string;
+}
+
+export async function getEvidence(from?: string, to?: string): Promise<Evidence> {
+  const p = new URLSearchParams();
+  if (from) p.set("from", from);
+  if (to) p.set("to", to);
+  const r = await authedFetch(`/api/v1/evidence?${p.toString()}`);
+  if (r.status === 403) throw new Error("Evidence requires the auditor role.");
+  if (!r.ok) throw new Error(`evidence failed: ${r.status}`);
+  return r.json();
+}
+
 // ---- transparency disclosure (spec 0003, public) ----
 
 export interface Transparency {

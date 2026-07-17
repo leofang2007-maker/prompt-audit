@@ -29,7 +29,9 @@ public class WebConfig implements WebMvcConfigurer {
                         // /api/v1/transparency is intentionally NOT listed → public disclosure.
                         "/api/v1/access-log", "/api/v1/access-log/**",
                         // spec 0004 — reporting-coverage / gap detection (admin session).
-                        "/api/v1/coverage", "/api/v1/coverage/**");
+                        "/api/v1/coverage", "/api/v1/coverage/**",
+                        // spec 0007 — audit-ready evidence pack (auditor session).
+                        "/api/v1/evidence");
     }
 
     @Override
