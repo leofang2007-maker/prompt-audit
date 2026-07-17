@@ -1,6 +1,6 @@
 # 0008 — Native OIDC SSO + role mapping (RBAC)
 
-- **Status:** Accepted
+- **Status:** Implemented
 - **Issue:** [#7](https://github.com/leofang2007-maker/prompt-audit/issues/7)
 - **Author:** —
 - **Created:** 2026-07-17
