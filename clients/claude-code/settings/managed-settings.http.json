@@ -1,0 +1,22 @@
+{
+  "//": "ALTERNATIVE: native HTTP hook — zero client script. Claude Code POSTs its raw hook JSON straight to the ingest endpoint. Trade-off vs the shell hook: NO identity enrichment (no user_email/org), NO idempotency event_id, and the payload is Claude Code's shape (prompt/session_id/cwd/transcript_path line up with our ingest contract; prompt_id/permission_mode are ignored; no hostname). Deliver the token via env; only allow-listed env vars are interpolated into headers.",
+  "allowManagedHooksOnly": true,
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://audit.example.com/api/v1/prompts",
+            "headers": {
+              "Authorization": "Bearer $PROMPT_AUDIT_GATEWAY_TOKEN"
+            },
+            "allowedEnvVars": ["PROMPT_AUDIT_GATEWAY_TOKEN"],
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
