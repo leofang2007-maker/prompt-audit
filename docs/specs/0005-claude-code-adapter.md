@@ -1,0 +1,144 @@
+# 0005 — Claude Code adapter (enterprise-enforced)
+
+- **Status:** Draft
+- **Issue:** [#5](https://github.com/leofang2007-maker/prompt-audit/issues/5)
+- **Author:** —
+- **Created:** 2026-07-17
+
+## Problem & motivation
+
+The audit server is tool-agnostic, but today only one client reports to it (the Qoder plugin). To be a
+credible compliance layer for AI coding, it needs adapters for the tools people actually run — and
+security teams are explicitly asking "how do you monitor **Claude Code** on employee machines"
+([research #25](../research/reddit-2026-07.md)).
+
+Claude Code is the strongest adapter case because of **enterprise-enforced configuration**. Per the
+official docs, `managed-settings.json` has the **highest settings precedence and cannot be overridden**
+by user/project/CLI settings, and it can define **hooks**; with `allowManagedHooksOnly: true` every
+user/project hook is blocked, so a `UserPromptSubmit` audit hook can be pushed via MDM and the developer
+**cannot remove or disable it**. That turns "we hope the hook is installed" into "the control is
+enforced" — and it closes the loop with coverage detection ([#4](0004-reporting-coverage-gap-detection.md)):
+on managed fleets, a silent host is a real anomaly, not a missing install.
+
+> **Doc caveat:** exact managed-hook field names (`allowManagedHooksOnly`, `allowedHttpHookUrls`, the
+> `type: http` hook schema, hook timeout) will be re-verified against live Claude Code docs at
+> implementation time. The load-bearing fact — managed hooks are enforced and user-un-removable — is
+> confirmed.
+
+## Goals / Non-goals
+
+**Goals**
+- A `clients/claude-code/` adapter that reports each submitted prompt to `/api/v1/prompts`, mirroring
+  the quality of the Qoder adapter (non-blocking, fail-open, spool-and-drain, config discovery).
+- A **managed-settings.json enforcement template** (`allowManagedHooksOnly`) + a deployment guide for
+  macOS/Linux/Windows so an enterprise can push an un-removable audit hook.
+- **Identity enrichment**: Claude Code's hook JSON lacks user identity — the adapter fills
+  `user_email` / `user_name` / `org_*` so compliance attribution works.
+- No server change: reuse the existing ingest contract + per-org ingest token.
+
+**Non-goals**
+- **Blocking / "prevent" mode** (rejecting a prompt that contains a secret) — v1 is pure audit,
+  non-blocking. A blocking hook is a separate future feature (relates to #2/#3 follow-ups).
+- Client-side redaction (a #2 follow-up) — redaction stays server-side for now; the shell hook is the
+  natural future home for it.
+- Bundling/enrolling the MDM itself — we ship the template + guide, not an MDM.
+
+## Design
+
+**Hook event.** `UserPromptSubmit`, which receives on stdin JSON incl. `session_id`, `cwd`,
+`transcript_path`, `prompt`, `timestamp`, `prompt_id`, `permission_mode`. The adapter always exits 0
+(non-blocking; a slow/failed audit never delays or blocks the developer's prompt).
+
+**Two delivery modes:**
+
+- **(A) Shell-script hook — recommended.** `report-prompt.sh` reads the stdin JSON (`jq`), enriches
+  identity, computes an idempotent `event_id`, maps to our ingest contract, and POSTs with the org's
+  ingest token. Full control: our exact payload, dedup, spool-and-drain on failure, and a future home
+  for client-side redaction. Mirrors `clients/qoder/scripts/upload-prompt.sh`.
+- **(B) Native HTTP hook — documented alternative.** `type: http` in managed-settings points straight
+  at the ingest URL — zero client script. Simplest to deploy, but sends Claude Code's raw JSON (no
+  identity enrichment, no `event_id` dedup, different field shape). Documented as a trade-off, not the
+  default.
+
+**Field mapping (shell mode)** — Claude Code hook JSON → ingest payload:
+
+| ingest field | source |
+|---|---|
+| `prompt` | `.prompt` |
+| `session_id` | `.session_id` |
+| `cwd` | `.cwd` |
+| `transcript_path` | `.transcript_path` |
+| `timestamp` | `.timestamp` (else now) |
+| `event_id` | `sha256(session_id | minute-bucket | prompt)` — same idempotency scheme as the Qoder adapter |
+| `hostname` | `hostname` (not in the hook JSON) |
+| `user_email` | enrichment (see below) — **not in the hook JSON** |
+| `user_name` / `org_id` / `org_name` | enrichment / env — **not in the hook JSON** |
+| `repo` / `branch` | derived from `.cwd` via `git` (best-effort) |
+
+**Identity enrichment (the gap the shell mode fills).** Precedence, all fail-open (null if unknown):
+explicit env (`PROMPT_AUDIT_USER_EMAIL`, `…_ORG_ID`, …) → `git config user.email` in `cwd` → OS user.
+This is why the shell hook is worth more than the raw HTTP hook: Claude Code's hook JSON carries **no**
+user/org identity, and compliance needs attribution.
+
+**Enterprise enforcement.** A `managed-settings.json` template with `allowManagedHooksOnly: true` and
+the audit `UserPromptSubmit` hook, plus a deploy guide for the three managed paths (macOS
+`/Library/Application Support/ClaudeCode/`, Linux `/etc/claude-code/`, Windows
+`C:\Program Files\ClaudeCode\`). The token is delivered as an allow-listed env var, not inlined.
+
+**Reliability.** Spool-and-drain like Qoder: on POST failure, append the payload to a local queue file;
+a `drain-failed.sh` retries later — so an offline laptop doesn't lose audit events (and doesn't create
+false coverage gaps once it reconnects).
+
+## Security & privacy
+
+- The ingest token is the only credential on the machine; it is write-only (can't read the audit log)
+  and delivered via managed env allow-list, not committed. Reuses the per-org token model.
+- Non-blocking + visible in the transcript — the hook is **not covert**; this aligns with the #3
+  transparency stance (developers can see it runs; the public `/transparency` endpoint discloses it).
+- Enforcement is a security *control*, not surveillance: it guarantees the audit trail exists, at
+  host/coverage granularity — consistent with #3/#4.
+
+## Edge cases & failure modes
+
+- **UserPromptSubmit timeout** (docs say lowered, ~30s) — the POST must be fast/bounded; on timeout,
+  spool and exit 0.
+- **Missing `jq`/`curl`** — pass through (exit 0), like the Qoder adapter.
+- **No identity resolvable** — send with null identity fields (server fail-open accepts).
+- **Windows** — managed path + shell availability differ; document (Git Bash / WSL, or use the HTTP
+  hook mode on pure Windows).
+- **Large prompt / special chars** — build JSON with `jq` (not string concat) to stay injection-safe.
+- **Offline** — spool + drain; never block.
+
+## Acceptance criteria / test plan
+
+1. Given a sample Claude Code `UserPromptSubmit` stdin JSON, `report-prompt.sh` produces a correct
+   ingest payload (right field mapping + a stable `event_id`) and POSTs it (verified against a
+   local/mock server); a clean full flow lands one row in the audit list.
+2. On POST failure the script exits 0 and the payload is spooled; `drain-failed.sh` later delivers it.
+3. Identity enrichment resolves in the documented precedence and fails open to null.
+4. The `managed-settings.json` template is valid JSON and documented for all three OS paths.
+5. Non-blocking: a failing/slow endpoint never changes the hook's exit code (always 0).
+
+## Alternatives considered
+
+- **HTTP-direct only** — simplest, but no identity/dedup/spool; kept as a documented alternative, not
+  the default.
+- **MCP gateway** — Claude Code talks directly to the vendor; a gateway isn't the interaction-layer
+  capture point we own. Out of scope.
+- **A compiled binary hook** — heavier to distribute than a POSIX shell script; unnecessary.
+
+## Migration / rollout
+
+Additive: a new `clients/claude-code/` directory + docs. No server or schema change. Existing Qoder
+clients are unaffected. Coverage (#4) automatically starts seeing Claude Code hosts once they report.
+
+## Open questions
+
+1. **v1 scope:** ship shell hook + managed-settings enforcement template + HTTP-hook alt doc together,
+   or shell-only first? *(leaning all three — the managed template is the whole enterprise selling point.)*
+2. **Identity precedence:** explicit env → `git config user.email` → OS user (all fail-open)? *(leaning yes.)*
+3. **Failure handling:** spool-and-drain (match Qoder) vs fire-and-forget? *(leaning spool-and-drain —
+   audit completeness matters and it avoids false coverage gaps.)*
+4. **Blocking/prevent mode:** confirm out of scope for v1 (pure audit)? *(leaning yes — non-blocking only.)*
+5. **Re-verify managed-hook field names** against live docs before coding? *(leaning yes — the exact
+   `allowManagedHooksOnly` / `allowedHttpHookUrls` / `type: http` schema.)*

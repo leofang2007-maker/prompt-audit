@@ -46,3 +46,4 @@ A spec has a **Status** in its header, updated over its life:
 | [0002](0002-secret-pii-redaction.md) | Secret / PII redaction at capture | Implemented | [#2](https://github.com/leofang2007-maker/prompt-audit/issues/2) |
 | [0003](0003-anti-surveillance-guardrails.md) | Anti-surveillance guardrails | Implemented | [#3](https://github.com/leofang2007-maker/prompt-audit/issues/3) |
 | [0004](0004-reporting-coverage-gap-detection.md) | Reporting-coverage / gap detection | Implemented | [#4](https://github.com/leofang2007-maker/prompt-audit/issues/4) |
+| [0005](0005-claude-code-adapter.md) | Claude Code adapter (enterprise-enforced) | Draft | [#5](https://github.com/leofang2007-maker/prompt-audit/issues/5) |
