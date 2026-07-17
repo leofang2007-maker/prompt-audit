@@ -1,6 +1,6 @@
 # 0008 — Native OIDC SSO + role mapping (RBAC)
 
-- **Status:** Draft
+- **Status:** Accepted
 - **Issue:** [#7](https://github.com/leofang2007-maker/prompt-audit/issues/7)
 - **Author:** —
 - **Created:** 2026-07-17
@@ -106,13 +106,16 @@ new BigInteger(1, b64url(e)))` → `KeyFactory("RSA")`; `Signature("SHA256withRS
 Additive: new `auth/oidc/*` + `/auth/me` endpoints, config, a login-page button. No schema change (SSO
 sessions are mapping-provisioned, not stored). Off by default.
 
-## Open questions
+## Decisions (resolved 2026-07-17)
 
-1. **id_token verification** — full JWKS RS256 (recommended) vs trust-direct-TLS? *(leaning full JWKS.)*
-2. **Mapping config** — platform-email allowlist + explicit email rules + domain rules + `default`
-   (deny by default)? *(leaning yes; default deny.)*
-3. **Provisioning** — SSO sessions are mapping-only (no `admin_user` row, no password)? *(leaning yes;
-   optionally write an audit row later.)*
-4. **`/auth/me`** endpoint to hydrate the SPA profile after the SSO redirect? *(leaning yes.)*
-5. **Token hand-off** — redirect to the SPA with the JWT in the query (`?sso=`) then clean the URL?
-   *(leaning yes; simple and same-origin.)*
+1. **Full JWKS RS256 verification** of the id_token (signature + iss/aud/exp/nonce) — not merely decoded.
+2. **Mapping = platform-email allowlist + explicit email rules + domain rules + `default`, and
+   `default = deny`.** A successfully-authenticated IdP user with no matching rule gets **403** — enabling
+   SSO does not admit the whole directory. Platform role only via the explicit email allowlist.
+3. **SSO sessions are mapping-provisioned only** — no `admin_user` row, no password. (An audit row is a
+   possible follow-up.)
+4. **Add `GET /api/v1/auth/me`** to hydrate the SPA profile after the SSO redirect (and generally useful).
+5. **Token hand-off** via a same-origin redirect to `/?sso=<jwt>`; the SPA stores it and cleans the URL.
+
+**Follow-ups (not in this spec):** trusted reverse-proxy header SSO as an alternative; SCIM provisioning;
+writing an audit row per SSO login.
