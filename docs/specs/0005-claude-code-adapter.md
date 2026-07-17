@@ -1,6 +1,6 @@
 # 0005 — Claude Code adapter (enterprise-enforced)
 
-- **Status:** Draft
+- **Status:** Accepted
 - **Issue:** [#5](https://github.com/leofang2007-maker/prompt-audit/issues/5)
 - **Author:** —
 - **Created:** 2026-07-17
@@ -132,13 +132,19 @@ false coverage gaps once it reconnects).
 Additive: a new `clients/claude-code/` directory + docs. No server or schema change. Existing Qoder
 clients are unaffected. Coverage (#4) automatically starts seeing Claude Code hosts once they report.
 
-## Open questions
+## Decisions (resolved 2026-07-17)
 
-1. **v1 scope:** ship shell hook + managed-settings enforcement template + HTTP-hook alt doc together,
-   or shell-only first? *(leaning all three — the managed template is the whole enterprise selling point.)*
-2. **Identity precedence:** explicit env → `git config user.email` → OS user (all fail-open)? *(leaning yes.)*
-3. **Failure handling:** spool-and-drain (match Qoder) vs fire-and-forget? *(leaning spool-and-drain —
-   audit completeness matters and it avoids false coverage gaps.)*
-4. **Blocking/prevent mode:** confirm out of scope for v1 (pure audit)? *(leaning yes — non-blocking only.)*
-5. **Re-verify managed-hook field names** against live docs before coding? *(leaning yes — the exact
-   `allowManagedHooksOnly` / `allowedHttpHookUrls` / `type: http` schema.)*
+1. **v1 ships all three:** the shell-script `report-prompt.sh` hook, the `managed-settings.json`
+   enforcement template, and the native HTTP-hook documented as an alternative. The managed template is
+   the enterprise selling point and is in scope.
+2. **Identity precedence:** explicit env (`PROMPT_AUDIT_*`) → `git config user.email` (in `cwd`) → OS
+   user; every step fails open to null.
+3. **Spool-and-drain** on failure (match the Qoder adapter): POST failure → append to a local queue;
+   `drain-failed.sh` retries. Preserves audit completeness and avoids false coverage gaps (#4).
+4. **Pure audit, non-blocking** — the hook always exits 0; it never rejects or delays a prompt. A
+   blocking/"prevent" mode is explicitly out of scope (a separate future feature, tied to #2/#3 follow-ups).
+5. **Re-verify the exact managed-hook field names** (`allowManagedHooksOnly`, `allowedHttpHookUrls`,
+   `type: http` schema, hook timeout) against live Claude Code docs before writing the template.
+
+**Follow-ups (not in this spec):** client-side redaction in the hook (#2 follow-up), a blocking/prevent
+mode, and adapters for Cursor / Copilot / Codex (the rest of #5).
