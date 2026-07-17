@@ -1,0 +1,19 @@
+# prompt-audit Codex adapter — ENTERPRISE ENFORCEMENT via requirements.toml (the managed/admin layer).
+# Deploy via MDM. `allow_managed_hooks_only` is ONLY honored in requirements.toml (ignored in config.toml)
+# and makes Codex skip all user/project/session hooks — so the audit hook cannot be removed or overridden.
+# Point managed_dir at where MDM installs the adapter scripts. Replace <MANAGED_DIR> accordingly.
+#
+# ⚠️ Experimental — verify exact keys against openai/codex "enterprise/managed-configuration" docs before rollout.
+
+allow_managed_hooks_only = true
+
+[features]
+hooks = true
+
+[[hooks.UserPromptSubmit]]
+type = "command"
+command = "sh \"<MANAGED_DIR>/report-prompt.sh\""
+
+[[hooks.SessionStart]]
+type = "command"
+command = "sh \"<MANAGED_DIR>/drain-failed.sh\""

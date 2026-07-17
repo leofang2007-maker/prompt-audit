@@ -1,0 +1,20 @@
+{
+  "//": "GitHub Copilot hook config for the AGENT surfaces (Copilot CLI / cloud agent / VS Code agent-mode). Replace <ADAPTER_DIR> with this adapter's absolute path. For enterprise enforcement, deploy as a machine-wide POLICY hook (admin-installed, non-disableable) per GitHub's hooks-reference. ⚠️ Copilot hooks/agent-hooks are Preview — verify the exact config format + location against docs.github.com/copilot hooks-reference before rollout. This does NOT cover classic Copilot Chat, inline completions, or JetBrains (no hook exists there — see README).",
+  "version": 1,
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "type": "command",
+        "command": "sh \"<ADAPTER_DIR>/scripts/report-prompt.sh\"",
+        "timeout": 10
+      }
+    ],
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "sh \"<ADAPTER_DIR>/scripts/drain-failed.sh\"",
+        "timeout": 10
+      }
+    ]
+  }
+}
