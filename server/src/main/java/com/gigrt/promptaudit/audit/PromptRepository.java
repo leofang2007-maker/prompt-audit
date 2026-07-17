@@ -2,8 +2,10 @@ package com.gigrt.promptaudit.audit;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * JPA repository. {@link JpaSpecificationExecutor} gives us dynamic, index-friendly filtering
@@ -17,6 +19,16 @@ public interface PromptRepository
 
     /** Idempotency lookup — the event_id column is UNIQUE, so at most one match. */
     PromptRecord findByEventId(String eventId);
+
+    /**
+     * Backfill rows that predate the redaction column (spec 0002): their {@code redaction_count} is NULL,
+     * which cannot map into the primitive {@code int} field — so any full-entity read (e.g. integrity
+     * verification) would fail. Native bulk update, run once at startup before any entity read.
+     */
+    @Modifying
+    @Transactional
+    @Query(value = "update prompt_record set redaction_count = 0 where redaction_count is null", nativeQuery = true)
+    int backfillNullRedactionCount();
 
     // ---- reporting-coverage / gap detection (spec 0004) ----
 
